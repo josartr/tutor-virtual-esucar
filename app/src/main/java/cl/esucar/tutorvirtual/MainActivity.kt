@@ -34,6 +34,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -42,8 +43,12 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.*
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
 import cl.esucar.tutorvirtual.data.*
 import cl.esucar.tutorvirtual.ui.TutorViewModel
+import java.util.concurrent.TimeUnit
 
 @OptIn(ExperimentalMaterial3Api::class)
 class MainActivity : ComponentActivity() {
@@ -51,12 +56,22 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         createNotificationChannel()
+        scheduleDeadlineReminders()
         setContent { TutorApp(viewModel) }
     }
 
     private fun createNotificationChannel() {
         val channel = NotificationChannel("deadlines", "Recordatorios académicos", NotificationManager.IMPORTANCE_DEFAULT)
         getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
+    }
+
+    private fun scheduleDeadlineReminders() {
+        val request = PeriodicWorkRequestBuilder<DeadlineReminderWorker>(1, TimeUnit.DAYS).build()
+        WorkManager.getInstance(this).enqueueUniquePeriodicWork(
+            "deadline-reminders",
+            ExistingPeriodicWorkPolicy.KEEP,
+            request
+        )
     }
 }
 
@@ -66,18 +81,38 @@ fun TutorApp(vm: TutorViewModel) {
     val currentDestination = nav.currentBackStackEntryAsState().value?.destination
     MaterialTheme(colorScheme = lightColorScheme(primary = Color(0xFF005A8D), secondary = Color(0xFF00796B))) {
         Scaffold(
-            topBar = { TopAppBar(title = { Text("Tutor Virtual ESUCAR", fontWeight = FontWeight.Bold) }) },
+            topBar = { TopAppBar(title = { InstitutionalBrand() }) },
             bottomBar = { BottomBar(nav, currentDestination) }
         ) { padding ->
             NavHost(nav, startDestination = "dashboard", Modifier.padding(padding)) {
                 composable("dashboard") { Dashboard(vm, nav) }
                 composable("guide") { Guide(vm, nav) }
                 composable("stage/{id}") { backStack ->
-                    StageDetail(vm.stages.first { it.id == backStack.arguments?.getString("id") }, nav)
+                    StageDetail(vm, vm.stages.first { it.id == backStack.arguments?.getString("id") }, nav)
                 }
                 composable("faq") { FaqScreen(vm) }
                 composable("deliverables") { Deliverables(vm) }
             }
+        }
+    }
+}
+
+@Composable
+private fun InstitutionalBrand() {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Image(
+            painter = painterResource(R.drawable.esucar_logo),
+            contentDescription = "Emblema de la Escuela de Suboficiales S.O.M. Fabriciano González Urzúa",
+            modifier = Modifier.size(42.dp),
+        )
+        Image(
+            painter = painterResource(R.drawable.carabineros_logo),
+            contentDescription = "Emblema de Carabineros de Chile",
+            modifier = Modifier.size(width = 28.dp, height = 42.dp),
+        )
+        Column {
+            Text("Tutor Virtual", fontWeight = FontWeight.Bold, fontSize = 17.sp)
+            Text("ESUCAR · Carabineros de Chile", fontSize = 10.sp, color = Color.DarkGray)
         }
     }
 }
@@ -164,8 +199,9 @@ private fun Guide(vm: TutorViewModel, nav: NavHostController) {
 }
 
 @Composable
-private fun StageDetail(stage: Stage, nav: NavHostController) {
+private fun StageDetail(vm: TutorViewModel, stage: Stage, nav: NavHostController) {
     val context = LocalContext.current
+    val checklist by vm.checklist.collectAsState()
     var bitmap by remember { mutableStateOf<Bitmap?>(null) }
     var documentName by remember { mutableStateOf<String?>(null) }
     val camera = rememberLauncherForActivityResult(ActivityResultContracts.TakePicturePreview()) { bitmap = it }
@@ -177,8 +213,11 @@ private fun StageDetail(stage: Stage, nav: NavHostController) {
         item { Text(stage.title, fontSize = 30.sp, fontWeight = FontWeight.Bold); Text(stage.description, fontSize = 17.sp) }
         item { AssistChip(onClick = {}, label = { Text("Formato requerido: ${stage.format}") }, leadingIcon = { Icon(Icons.Default.Description, null) }) }
         item { Text("Checklist", fontSize = 20.sp, fontWeight = FontWeight.Bold) }
-        items(stage.checklist) { check -> var done by remember { mutableStateOf(false) }; Row(Modifier.fillMaxWidth().clickable { done = !done }.padding(vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
-            Checkbox(done, { done = it }); Text(check, modifier = Modifier.alpha(if (done) .55f else 1f))
+        items(stage.checklist.indices.toList()) { index ->
+            val check = stage.checklist[index]
+            val done = checklist[stage.id].orEmpty().contains(index)
+            Row(Modifier.fillMaxWidth().clickable { vm.setChecklistItem(stage.id, index, !done) }.padding(vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(done, { vm.setChecklistItem(stage.id, index, it) }); Text(check, modifier = Modifier.alpha(if (done) .55f else 1f))
         }}
         item {
             Card { Column(Modifier.padding(16.dp)) {
@@ -219,10 +258,22 @@ private fun FaqScreen(vm: TutorViewModel) {
 @Composable
 private fun Deliverables(vm: TutorViewModel) {
     val items by vm.deliverables.collectAsState(); var showAdd by remember { mutableStateOf(false) }; val context = LocalContext.current
+    val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) showDeadlineNotification(context)
+    }
     LazyColumn(contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) { Text("Mis hitos", fontSize = 28.sp, fontWeight = FontWeight.Bold); FloatingActionButton(onClick = { showAdd = true }, modifier = Modifier.size(48.dp)) { Icon(Icons.Default.Add, "Agregar") } } }
         items(items) { DeliverableCard(it, vm) }
-        item { OutlinedButton(onClick = { showDeadlineNotification(context) }, Modifier.fillMaxWidth()) { Icon(Icons.Default.Notifications, null); Spacer(Modifier.width(8.dp)); Text("Probar recordatorio local") } }
+        item {
+            OutlinedButton(onClick = {
+                if (android.os.Build.VERSION.SDK_INT >= 33 &&
+                    ActivityCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+                ) notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                else showDeadlineNotification(context)
+            }, Modifier.fillMaxWidth()) {
+                Icon(Icons.Default.Notifications, null); Spacer(Modifier.width(8.dp)); Text("Activar recordatorios")
+            }
+        }
     }
     if (showAdd) AddDeliverableDialog({ showAdd = false }, vm)
 }

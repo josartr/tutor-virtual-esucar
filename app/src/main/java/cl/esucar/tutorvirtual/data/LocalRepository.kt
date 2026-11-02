@@ -29,4 +29,19 @@ class LocalRepository(context: Context) {
         }
         prefs.edit().putString("deliverables", array.toString()).apply()
     }
+
+    fun loadChecklist(): Map<String, Set<Int>> = demoStages.associate { stage ->
+        stage.id to prefs.getStringSet("checklist_${stage.id}", emptySet())
+            .orEmpty()
+            .mapNotNull { it.toIntOrNull() }
+            .toSet()
+    }
+
+    fun saveChecklist(checklist: Map<String, Set<Int>>) {
+        val editor = prefs.edit()
+        checklist.forEach { (stageId, completed) ->
+            editor.putStringSet("checklist_$stageId", completed.map(Int::toString).toSet())
+        }
+        editor.apply()
+    }
 }
