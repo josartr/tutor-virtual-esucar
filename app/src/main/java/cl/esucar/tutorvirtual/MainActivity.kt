@@ -47,6 +47,8 @@ import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import cl.esucar.tutorvirtual.data.*
+import cl.esucar.tutorvirtual.ui.InstitutionalColors
+import cl.esucar.tutorvirtual.ui.InstitutionalLightColors
 import cl.esucar.tutorvirtual.ui.TutorViewModel
 import java.util.concurrent.TimeUnit
 
@@ -79,7 +81,7 @@ class MainActivity : ComponentActivity() {
 fun TutorApp(vm: TutorViewModel) {
     val nav = rememberNavController()
     val currentDestination = nav.currentBackStackEntryAsState().value?.destination
-    MaterialTheme(colorScheme = lightColorScheme(primary = Color(0xFF005A8D), secondary = Color(0xFF00796B))) {
+    MaterialTheme(colorScheme = InstitutionalLightColors) {
         Scaffold(
             topBar = { TopAppBar(title = { InstitutionalBrand() }) },
             bottomBar = { BottomBar(nav, currentDestination) }
@@ -138,12 +140,12 @@ private fun Dashboard(vm: TutorViewModel, nav: NavHostController) {
             AnimatedVisibility(true, enter = fadeIn() + slideInVertically()) {
                 Column {
                     Text("Hola, estudiante", fontSize = 28.sp, fontWeight = FontWeight.Bold)
-                    Text("Avanza con claridad en tu Trabajo de Título.", color = Color.DarkGray)
+                    Text("Avanza con claridad en tu Trabajo de Título.", color = InstitutionalColors.Graphite)
                 }
             }
         }
         item {
-            Card(colors = CardDefaults.cardColors(containerColor = Color(0xFFE7F2F8)), shape = RoundedCornerShape(20.dp)) {
+            Card(colors = CardDefaults.cardColors(containerColor = InstitutionalColors.GreenSoft), shape = RoundedCornerShape(20.dp)) {
                 Column(Modifier.padding(20.dp)) {
                     Text("Progreso general", fontWeight = FontWeight.Bold)
                     Text("${(progress * 100).toInt()}% de hitos aprobados", fontSize = 26.sp, fontWeight = FontWeight.Bold)
@@ -170,14 +172,14 @@ private fun Dashboard(vm: TutorViewModel, nav: NavHostController) {
 private fun SectionTitle(title: String, action: String?, onClick: () -> Unit) {
     Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
         Text(title, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-        if (action != null) Text(action, color = MaterialTheme.colorScheme.primary, modifier = Modifier.clickable { onClick() })
+        if (action != null)         Text(action, color = InstitutionalColors.Navy, modifier = Modifier.clickable { onClick() })
     }
 }
 
 @Composable
 private fun RowScope.QuickAction(label: String, icon: androidx.compose.ui.graphics.vector.ImageVector, onClick: () -> Unit) {
     Card(Modifier.weight(1f).clickable { onClick() }) { Column(Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Icon(icon, null, tint = MaterialTheme.colorScheme.primary); Text(label, fontSize = 12.sp)
+        Icon(icon, null, tint = InstitutionalColors.Green); Text(label, fontSize = 12.sp)
     }}
 }
 
@@ -190,7 +192,7 @@ private fun Guide(vm: TutorViewModel, nav: NavHostController) {
                 Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.size(12.dp).background(Color(stage.color), RoundedCornerShape(6.dp)))
                     Spacer(Modifier.width(14.dp)); Column(Modifier.weight(1f)) {
-                        Text(stage.title, fontWeight = FontWeight.Bold); Text(stage.description, maxLines = 2, color = Color.DarkGray)
+                        Text(stage.title, fontWeight = FontWeight.Bold); Text(stage.description, maxLines = 2, color = InstitutionalColors.Graphite)
                     }; Icon(Icons.Default.ChevronRight, null)
                 }
             }
@@ -231,7 +233,7 @@ private fun StageDetail(vm: TutorViewModel, stage: Stage, nav: NavHostController
                     OutlinedButton(onClick = { picker.launch(arrayOf("application/pdf", "text/*", "image/*")) }) { Icon(Icons.Default.AttachFile, null); Spacer(Modifier.width(6.dp)); Text("Adjuntar") }
                 }
                 bitmap?.let { Image(it.asImageBitmap(), "Evidencia", Modifier.fillMaxWidth().height(150.dp)) }
-                documentName?.let { Text("Documento seleccionado: $it", color = MaterialTheme.colorScheme.primary) }
+                documentName?.let { Text("Documento seleccionado: $it", color = InstitutionalColors.Navy) }
             }}
         }
         item { TextButton(onClick = { nav.popBackStack() }) { Text("Volver a la guía") } }
@@ -249,8 +251,8 @@ private fun FaqScreen(vm: TutorViewModel) {
             Spacer(Modifier.height(8.dp)); Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) { categories.forEach { FilterChip(selected = category == it, onClick = { category = it }, label = { Text(it) }) } }
         }
         items(filtered) { faq -> var expanded by remember { mutableStateOf(false) }; Card(Modifier.fillMaxWidth().clickable { expanded = !expanded }) { Column(Modifier.padding(16.dp)) {
-            Text(faq.category.uppercase(), color = MaterialTheme.colorScheme.primary, fontSize = 12.sp, fontWeight = FontWeight.Bold); Text(faq.question, fontWeight = FontWeight.Bold)
-            AnimatedVisibility(expanded) { Text(faq.answer, Modifier.padding(top = 8.dp), color = Color.DarkGray) }
+            Text(faq.category.uppercase(), color = InstitutionalColors.Green, fontSize = 12.sp, fontWeight = FontWeight.Bold); Text(faq.question, fontWeight = FontWeight.Bold)
+            AnimatedVisibility(expanded) { Text(faq.answer, Modifier.padding(top = 8.dp), color = InstitutionalColors.Graphite) }
         }}}
     }
 }
@@ -282,7 +284,7 @@ private fun Deliverables(vm: TutorViewModel) {
 private fun DeliverableCard(item: Deliverable, vm: TutorViewModel) {
     Card { Column(Modifier.padding(16.dp)) {
         Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) { Text(item.title, fontWeight = FontWeight.Bold); StatusBadge(item.status) }
-        Text("Fecha límite: ${item.dueDate}", color = Color.DarkGray); Spacer(Modifier.height(8.dp))
+        Text("Fecha límite: ${item.dueDate}", color = InstitutionalColors.Graphite); Spacer(Modifier.height(8.dp))
         var expanded by remember { mutableStateOf(false) }
         ExposedDropdownMenuBox(expanded, { expanded = !expanded }) { OutlinedTextField(item.status.label, {}, Modifier.menuAnchor().fillMaxWidth(), readOnly = true, label = { Text("Estado") }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) })
             ExposedDropdownMenu(expanded, { expanded = false }) { DeliverableStatus.entries.forEach { status -> DropdownMenuItem(text = { Text(status.label) }, onClick = { vm.updateStatus(item.id, status); expanded = false }) } }
