@@ -21,6 +21,7 @@ MVP móvil para estudiantes de ESUCAR que desarrollan su Trabajo de Título. La 
 - Recursos nativos: cámara para evidencia y selector seguro de documentos.
 - Animaciones de entrada, expansión de respuestas y progreso.
 - Identidad visual institucional con emblemas de ESUCAR y Carabineros de Chile.
+- Cabecera institucional unificada con el logo oficial proporcionado para la aplicación.
 - Paleta institucional inspirada en la referencia visual: verde Carabineros, verde lima de acento, gris claro, grafito y azul institucional.
 - Checklist persistente por etapa y recordatorios diarios programados con WorkManager.
 
@@ -34,7 +35,7 @@ MVP móvil para estudiantes de ESUCAR que desarrollan su Trabajo de Título. La 
 
 El proyecto no requiere servidor: el contenido de demostración se carga localmente y los cambios de hitos se guardan en `SharedPreferences`.
 
-Los recursos visuales institucionales incluidos fueron proporcionados para este prototipo y se usan únicamente como identidad de la aplicación académica.
+El logo institucional incluido fue proporcionado para este prototipo y se usa como identidad visual de la aplicación académica.
 
 ## Arquitectura
 
