@@ -24,11 +24,11 @@ data class Deliverable(
 data class Faq(val question: String, val category: String, val answer: String)
 
 val demoStages = listOf(
-    Stage("planteamiento", "Planteamiento", "Delimita el problema, la pregunta de investigación y los objetivos del trabajo.", "Avance escrito, 2 a 4 páginas, interlineado 1,5.", listOf("Contexto y problema descritos", "Pregunta de investigación definida", "Objetivo general y específicos revisados"), 0xFF005A8D),
-    Stage("marco", "Marco Teórico", "Organiza los conceptos, antecedentes y fuentes que sustentan tu propuesta.", "Documento con citas y referencias en norma APA 7.", listOf("Fuentes académicas seleccionadas", "Conceptos clave definidos", "Citas y referencias verificadas"), 0xFF00796B),
-    Stage("metodologia", "Metodología", "Explica cómo responderás la pregunta y cómo analizarás la información.", "Capítulo metodológico con enfoque, alcance e instrumentos.", listOf("Enfoque y diseño definidos", "Población y muestra descritas", "Instrumento de recolección preparado"), 0xFF6A4C93),
-    Stage("recogida", "Recogida de información", "Aplica los instrumentos respetando criterios éticos y registra evidencias.", "Base de datos o matriz de evidencias, con respaldo local.", listOf("Consentimientos registrados", "Instrumentos aplicados", "Matriz de datos ordenada"), 0xFFB05A00),
-    Stage("analisis", "Análisis de resultados", "Interpreta los hallazgos y relaciónalos con tus objetivos y marco teórico.", "Informe con tablas, gráficos y discusión.", listOf("Datos depurados", "Resultados visualizados", "Conclusiones conectadas a objetivos"), 0xFF9B2C4A)
+    Stage("planteamiento", "Planteamiento", "Delimita el problema, la pregunta de investigación y los objetivos del trabajo.", "Avance escrito, 2 a 4 páginas, interlineado 1,5.", listOf("Contexto y problema descritos", "Pregunta de investigación definida", "Objetivo general y específicos revisados"), 0xFF218265),
+    Stage("marco", "Marco Teórico", "Organiza los conceptos, antecedentes y fuentes que sustentan tu propuesta.", "Documento con citas y referencias en norma APA 7.", listOf("Fuentes académicas seleccionadas", "Conceptos clave definidos", "Citas y referencias verificadas"), 0xFF17654F),
+    Stage("metodologia", "Metodología", "Explica cómo responderás la pregunta y cómo analizarás la información.", "Capítulo metodológico con enfoque, alcance e instrumentos.", listOf("Enfoque y diseño definidos", "Población y muestra descritas", "Instrumento de recolección preparado"), 0xFF8BAF3A),
+    Stage("recogida", "Recogida de información", "Aplica los instrumentos respetando criterios éticos y registra evidencias.", "Base de datos o matriz de evidencias, con respaldo local.", listOf("Consentimientos registrados", "Instrumentos aplicados", "Matriz de datos ordenada"), 0xFF1F4768),
+    Stage("analisis", "Análisis de resultados", "Interpreta los hallazgos y relaciónalos con tus objetivos y marco teórico.", "Informe con tablas, gráficos y discusión.", listOf("Datos depurados", "Resultados visualizados", "Conclusiones conectadas a objetivos"), 0xFF3A6B5A)
 )
 
 val demoDeliverables = listOf(

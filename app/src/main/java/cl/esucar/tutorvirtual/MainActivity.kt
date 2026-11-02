@@ -83,7 +83,16 @@ fun TutorApp(vm: TutorViewModel) {
     val currentDestination = nav.currentBackStackEntryAsState().value?.destination
     MaterialTheme(colorScheme = InstitutionalLightColors) {
         Scaffold(
-            topBar = { TopAppBar(title = { InstitutionalBrand() }) },
+            containerColor = InstitutionalColors.Background,
+            topBar = {
+                TopAppBar(
+                    title = { InstitutionalBrand() },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = InstitutionalColors.Green,
+                        titleContentColor = InstitutionalColors.White
+                    )
+                )
+            },
             bottomBar = { BottomBar(nav, currentDestination) }
         ) { padding ->
             NavHost(nav, startDestination = "dashboard", Modifier.padding(padding)) {
@@ -114,19 +123,33 @@ private fun InstitutionalBrand() {
         )
         Column {
             Text("Tutor Virtual", fontWeight = FontWeight.Bold, fontSize = 17.sp)
-            Text("ESUCAR · Carabineros de Chile", fontSize = 10.sp, color = Color.DarkGray)
+            Text("ESUCAR · Carabineros de Chile", fontSize = 10.sp, color = InstitutionalColors.White.copy(alpha = 0.88f))
         }
     }
 }
 
 @Composable
 private fun BottomBar(nav: NavHostController, currentDestination: androidx.navigation.NavDestination?) {
-    NavigationBar {
+    NavigationBar(
+        containerColor = InstitutionalColors.GreenDark,
+        contentColor = InstitutionalColors.White,
+        tonalElevation = 0.dp
+    ) {
         listOf("dashboard" to Icons.Default.Home to "Inicio", "guide" to Icons.Default.MenuBook to "Guía",
             "faq" to Icons.Default.Search to "FAQ", "deliverables" to Icons.Default.TaskAlt to "Hitos").forEach { (entry, label) ->
-            NavigationBarItem(selected = currentDestination?.route == entry.first,
+            NavigationBarItem(
+                selected = currentDestination?.route == entry.first,
                 onClick = { nav.navigate(entry.first) { launchSingleTop = true } },
-                icon = { Icon(entry.second, label) }, label = { Text(label) })
+                icon = { Icon(entry.second, label) },
+                label = { Text(label) },
+                colors = NavigationBarItemDefaults.colors(
+                    selectedIconColor = InstitutionalColors.Lime,
+                    selectedTextColor = InstitutionalColors.White,
+                    indicatorColor = InstitutionalColors.Green,
+                    unselectedIconColor = InstitutionalColors.White.copy(alpha = 0.72f),
+                    unselectedTextColor = InstitutionalColors.White.copy(alpha = 0.72f)
+                )
+            )
         }
     }
 }
@@ -134,7 +157,9 @@ private fun BottomBar(nav: NavHostController, currentDestination: androidx.navig
 @Composable
 private fun Dashboard(vm: TutorViewModel, nav: NavHostController) {
     val deliverables by vm.deliverables.collectAsState()
-    val progress by animateFloatAsState((deliverables.count { it.status == DeliverableStatus.APPROVED } / deliverables.size.coerceAtLeast(1)).toFloat(), label = "progress")
+    val checklist by vm.checklist.collectAsState()
+    val summary = calculateProgress(deliverables, vm.stages, checklist)
+    val progress by animateFloatAsState(summary.fraction, label = "progress")
     LazyColumn(contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         item {
             AnimatedVisibility(true, enter = fadeIn() + slideInVertically()) {
@@ -148,9 +173,21 @@ private fun Dashboard(vm: TutorViewModel, nav: NavHostController) {
             Card(colors = CardDefaults.cardColors(containerColor = InstitutionalColors.GreenSoft), shape = RoundedCornerShape(20.dp)) {
                 Column(Modifier.padding(20.dp)) {
                     Text("Progreso general", fontWeight = FontWeight.Bold)
-                    Text("${(progress * 100).toInt()}% de hitos aprobados", fontSize = 26.sp, fontWeight = FontWeight.Bold)
+                    Text("${(progress * 100).toInt()}% de avance general", fontSize = 26.sp, fontWeight = FontWeight.Bold)
                     Spacer(Modifier.height(10.dp))
-                    LinearProgressIndicator(progress = { progress }, Modifier.fillMaxWidth().height(10.dp))
+                    LinearProgressIndicator(
+                        progress = { progress },
+                        modifier = Modifier.fillMaxWidth().height(10.dp),
+                        color = InstitutionalColors.Lime,
+                        trackColor = InstitutionalColors.GreenDark.copy(alpha = 0.18f)
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "${summary.approvedDeliverables} de ${deliverables.size} hitos aprobados · " +
+                            "${summary.completedChecklistItems} de ${summary.totalChecklistItems} tareas completadas",
+                        color = InstitutionalColors.Graphite,
+                        fontSize = 12.sp
+                    )
                 }
             }
         }
@@ -178,7 +215,11 @@ private fun SectionTitle(title: String, action: String?, onClick: () -> Unit) {
 
 @Composable
 private fun RowScope.QuickAction(label: String, icon: androidx.compose.ui.graphics.vector.ImageVector, onClick: () -> Unit) {
-    Card(Modifier.weight(1f).clickable { onClick() }) { Column(Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+    Card(
+        modifier = Modifier.weight(1f).clickable { onClick() },
+        colors = CardDefaults.cardColors(containerColor = InstitutionalColors.White),
+        border = androidx.compose.foundation.BorderStroke(1.dp, InstitutionalColors.Border)
+    ) { Column(Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Icon(icon, null, tint = InstitutionalColors.Green); Text(label, fontSize = 12.sp)
     }}
 }
@@ -226,11 +267,17 @@ private fun StageDetail(vm: TutorViewModel, stage: Stage, nav: NavHostController
                 Text("Recursos nativos", fontWeight = FontWeight.Bold)
                 Text("Registra una evidencia con cámara o adjunta un documento.")
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = {
+                    Button(
+                        onClick = {
                         if (ActivityCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) camera.launch(null)
                         else cameraPermission.launch(Manifest.permission.CAMERA)
-                    }) { Icon(Icons.Default.CameraAlt, null); Spacer(Modifier.width(6.dp)); Text("Cámara") }
-                    OutlinedButton(onClick = { picker.launch(arrayOf("application/pdf", "text/*", "image/*")) }) { Icon(Icons.Default.AttachFile, null); Spacer(Modifier.width(6.dp)); Text("Adjuntar") }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = InstitutionalColors.Green)
+                    ) { Icon(Icons.Default.CameraAlt, null); Spacer(Modifier.width(6.dp)); Text("Cámara") }
+                            OutlinedButton(
+                                onClick = { picker.launch(arrayOf("application/pdf", "text/*", "image/*")) },
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = InstitutionalColors.Navy)
+                            ) { Icon(Icons.Default.AttachFile, null); Spacer(Modifier.width(6.dp)); Text("Adjuntar") }
                 }
                 bitmap?.let { Image(it.asImageBitmap(), "Evidencia", Modifier.fillMaxWidth().height(150.dp)) }
                 documentName?.let { Text("Documento seleccionado: $it", color = InstitutionalColors.Navy) }

@@ -13,6 +13,7 @@ object InstitutionalColors {
     val Graphite = Color(0xFF505050)
     val Background = Color(0xFFF4F4F4)
     val Border = Color(0xFFD8DDDA)
+    val White = Color.White
 }
 
 val InstitutionalLightColors: ColorScheme = lightColorScheme(
@@ -32,5 +33,7 @@ val InstitutionalLightColors: ColorScheme = lightColorScheme(
     onSurface = InstitutionalColors.Graphite,
     surfaceVariant = Color(0xFFEEF1EF),
     onSurfaceVariant = Color(0xFF53605B),
-    outline = InstitutionalColors.Border
+    outline = InstitutionalColors.Border,
+    error = Color(0xFFB3261E),
+    onError = Color.White
 )
