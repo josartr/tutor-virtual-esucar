@@ -110,20 +110,47 @@ fun TutorApp(vm: TutorViewModel) {
 
 @Composable
 private fun InstitutionalBrand() {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Image(
-            painter = painterResource(R.drawable.esucar_logo),
-            contentDescription = "Emblema de la Escuela de Suboficiales S.O.M. Fabriciano González Urzúa",
-            modifier = Modifier.size(42.dp),
-        )
-        Image(
-            painter = painterResource(R.drawable.carabineros_logo),
-            contentDescription = "Emblema de Carabineros de Chile",
-            modifier = Modifier.size(width = 28.dp, height = 42.dp),
-        )
-        Column {
-            Text("Tutor Virtual", fontWeight = FontWeight.Bold, fontSize = 17.sp)
-            Text("ESUCAR · Carabineros de Chile", fontSize = 10.sp, color = InstitutionalColors.White.copy(alpha = 0.88f))
+    Image(
+        painter = painterResource(R.drawable.institutional_header_logo),
+        contentDescription = "Carabineros de Chile, Escuela de Suboficiales y Tutor Virtual",
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(42.dp),
+        contentScale = androidx.compose.ui.layout.ContentScale.Fit
+    )
+}
+
+@Composable
+private fun WelcomeBanner() {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = InstitutionalColors.Green),
+        shape = RoundedCornerShape(22.dp)
+    ) {
+        Column(Modifier.padding(20.dp)) {
+            Text(
+                "Tutor Virtual ESUCAR",
+                color = InstitutionalColors.White,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "Acompañamiento institucional para tu Trabajo de Título.",
+                color = InstitutionalColors.White.copy(alpha = 0.9f),
+                fontSize = 14.sp
+            )
+            Spacer(Modifier.height(14.dp))
+            Surface(
+                color = InstitutionalColors.White.copy(alpha = 0.14f),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text(
+                    "Contenido disponible sin conexión",
+                    color = InstitutionalColors.White,
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)
+                )
+            }
         }
     }
 }
@@ -169,6 +196,7 @@ private fun Dashboard(vm: TutorViewModel, nav: NavHostController) {
                 }
             }
         }
+        item { WelcomeBanner() }
         item {
             Card(colors = CardDefaults.cardColors(containerColor = InstitutionalColors.GreenSoft), shape = RoundedCornerShape(20.dp)) {
                 Column(Modifier.padding(20.dp)) {
