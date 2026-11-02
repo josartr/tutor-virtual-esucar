@@ -20,6 +20,8 @@ MVP móvil para estudiantes de ESUCAR que desarrollan su Trabajo de Título. La 
 - Recordatorio local de fechas límite.
 - Recursos nativos: cámara para evidencia y selector seguro de documentos.
 - Animaciones de entrada, expansión de respuestas y progreso.
+- Identidad visual institucional con emblemas de ESUCAR y Carabineros de Chile.
+- Checklist persistente por etapa y recordatorios diarios programados con WorkManager.
 
 ## Ejecutar en Android Studio
 
@@ -30,6 +32,8 @@ MVP móvil para estudiantes de ESUCAR que desarrollan su Trabajo de Título. La 
 5. Para probar cámara y notificaciones, aceptar los permisos solicitados por el sistema.
 
 El proyecto no requiere servidor: el contenido de demostración se carga localmente y los cambios de hitos se guardan en `SharedPreferences`.
+
+Los recursos visuales institucionales incluidos fueron proporcionados para este prototipo y se usan únicamente como identidad de la aplicación académica.
 
 ## Arquitectura
 

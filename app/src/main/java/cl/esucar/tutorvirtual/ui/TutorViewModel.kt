@@ -11,6 +11,8 @@ class TutorViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = LocalRepository(application)
     private val _deliverables = MutableStateFlow(repository.loadDeliverables())
     val deliverables: StateFlow<List<Deliverable>> = _deliverables.asStateFlow()
+    private val _checklist = MutableStateFlow(repository.loadChecklist())
+    val checklist: StateFlow<Map<String, Set<Int>>> = _checklist.asStateFlow()
     val stages = demoStages
     val faqs = demoFaqs
 
@@ -25,5 +27,14 @@ class TutorViewModel(application: Application) : AndroidViewModel(application) {
         val updated = _deliverables.value + item
         _deliverables.value = updated
         repository.saveDeliverables(updated)
+    }
+
+    fun setChecklistItem(stageId: String, index: Int, completed: Boolean) {
+        val current = _checklist.value.toMutableMap()
+        val items = current[stageId].orEmpty().toMutableSet()
+        if (completed) items.add(index) else items.remove(index)
+        current[stageId] = items
+        _checklist.value = current
+        repository.saveChecklist(current)
     }
 }
