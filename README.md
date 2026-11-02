@@ -21,6 +21,7 @@ MVP móvil para estudiantes de ESUCAR que desarrollan su Trabajo de Título. La 
 - Recursos nativos: cámara para evidencia y selector seguro de documentos.
 - Animaciones de entrada, expansión de respuestas y progreso.
 - Identidad visual institucional con emblemas de ESUCAR y Carabineros de Chile.
+- Paleta institucional inspirada en la referencia visual: verde Carabineros, verde lima de acento, gris claro, grafito y azul institucional.
 - Checklist persistente por etapa y recordatorios diarios programados con WorkManager.
 
 ## Ejecutar en Android Studio
@@ -37,4 +38,6 @@ Los recursos visuales institucionales incluidos fueron proporcionados para este 
 
 ## Arquitectura
 
-La app usa Jetpack Compose, Navigation Compose y un `TutorViewModel` que concentra estado y validaciones de flujo. `LocalRepository` abstrae la persistencia local y los modelos de `data` mantienen separadas las responsabilidades de dominio de la UI.
+La app usa Jetpack Compose, Navigation Compose y un `TutorViewModel` que concentra estado y validaciones de flujo. `LocalRepository` abstrae la persistencia local, `ProgressCalculator` calcula el avance ponderado y los modelos de `data` mantienen separadas las responsabilidades de dominio de la UI.
+
+El progreso general aumenta de forma gradual: los hitos aportan 0% en Por iniciar, 35% en En desarrollo, 75% en Enviado y 100% en Aprobado; además, cada tarea completada del checklist aporta avance adicional. La lógica está cubierta por pruebas unitarias.
