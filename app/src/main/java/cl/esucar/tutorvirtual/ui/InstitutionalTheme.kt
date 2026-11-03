@@ -5,9 +5,9 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.ui.graphics.Color
 
 object InstitutionalColors {
-    val Green = Color(0xFF218265)
-    val GreenDark = Color(0xFF17654F)
-    val GreenSoft = Color(0xFFE6F1ED)
+    val Green = Color(0xFF007328)
+    val GreenDark = Color(0xFF004D1B)
+    val GreenSoft = Color(0xFFE5F2E9)
     val Lime = Color(0xFF8BAF3A)
     val Navy = Color(0xFF1F4768)
     val Graphite = Color(0xFF505050)

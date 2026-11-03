@@ -3,9 +3,13 @@
 package cl.esucar.tutorvirtual
 
 import android.Manifest
-import android.app.*
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.content.ClipboardManager
+import android.content.Context
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -17,12 +21,13 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.slideInVertically
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -55,6 +60,7 @@ import java.util.concurrent.TimeUnit
 @OptIn(ExperimentalMaterial3Api::class)
 class MainActivity : ComponentActivity() {
     private val viewModel: TutorViewModel by viewModels()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         createNotificationChannel()
@@ -79,78 +85,572 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun TutorApp(vm: TutorViewModel) {
-    val nav = rememberNavController()
-    val currentDestination = nav.currentBackStackEntryAsState().value?.destination
+    val userProfile by vm.userProfile.collectAsState()
+    var showProfileDialog by remember { mutableStateOf(false) }
+
     MaterialTheme(colorScheme = InstitutionalLightColors) {
-        Scaffold(
-            containerColor = InstitutionalColors.Background,
-            topBar = {
-                TopAppBar(
-                    title = { InstitutionalBrand() },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = InstitutionalColors.Green,
-                        titleContentColor = InstitutionalColors.White
+        if (!userProfile.isLoggedIn) {
+            LoginScreen(vm)
+        } else {
+            val nav = rememberNavController()
+            val currentDestination = nav.currentBackStackEntryAsState().value?.destination
+
+            Scaffold(
+                containerColor = InstitutionalColors.Background,
+                topBar = {
+                    TopAppBar(
+                        title = { InstitutionalBrand() },
+                        actions = {
+                            IconButton(onClick = { showProfileDialog = true }) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .background(InstitutionalColors.White.copy(alpha = 0.2f), CircleShape),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        Icons.Default.Person,
+                                        contentDescription = "Perfil del Estudiante",
+                                        tint = InstitutionalColors.White
+                                    )
+                                }
+                            }
+                        },
+                        colors = TopAppBarDefaults.topAppBarColors(
+                            containerColor = InstitutionalColors.Green,
+                            titleContentColor = InstitutionalColors.White
+                        )
                     )
-                )
-            },
-            bottomBar = { BottomBar(nav, currentDestination) }
-        ) { padding ->
-            NavHost(nav, startDestination = "dashboard", Modifier.padding(padding)) {
-                composable("dashboard") { Dashboard(vm, nav) }
-                composable("guide") { Guide(vm, nav) }
-                composable("stage/{id}") { backStack ->
-                    StageDetail(vm, vm.stages.first { it.id == backStack.arguments?.getString("id") }, nav)
+                },
+                bottomBar = { BottomBar(nav, currentDestination) }
+            ) { padding ->
+                NavHost(nav, startDestination = "dashboard", Modifier.padding(padding)) {
+                    composable("dashboard") { Dashboard(vm, nav, onOpenProfile = { showProfileDialog = true }) }
+                    composable("guide") { Guide(vm, nav) }
+                    composable("stage/{id}") { backStack ->
+                        val stageId = backStack.arguments?.getString("id")
+                        val stage = vm.stages.firstOrNull { it.id == stageId } ?: vm.stages.first()
+                        StageDetail(vm, stage, nav)
+                    }
+                    composable("study") { StudyToolsScreen(vm) }
+                    composable("faq") { FaqScreen(vm) }
+                    composable("deliverables") { Deliverables(vm) }
                 }
-                composable("faq") { FaqScreen(vm) }
-                composable("deliverables") { Deliverables(vm) }
+            }
+
+            if (showProfileDialog) {
+                ProfileDialog(userProfile, onDismiss = { showProfileDialog = false }, vm = vm)
             }
         }
     }
 }
 
 @Composable
-private fun InstitutionalBrand() {
-    Image(
-        painter = painterResource(R.drawable.institutional_header_logo),
-        contentDescription = "Carabineros de Chile, Escuela de Suboficiales y Tutor Virtual",
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(42.dp),
-        contentScale = androidx.compose.ui.layout.ContentScale.Fit
+private fun LoginScreen(vm: TutorViewModel) {
+    var selectedRank by remember { mutableStateOf(defaultRanks.first()) }
+    var rankExpanded by remember { mutableStateOf(false) }
+    var selectedTutor by remember { mutableStateOf(defaultEsucarTutors.first()) }
+    var tutorExpanded by remember { mutableStateOf(false) }
+
+    var fullName by remember { mutableStateOf("") }
+    var email by remember { mutableStateOf("") }
+    var researchTopic by remember { mutableStateOf("") }
+    var submitted by remember { mutableStateOf(false) }
+    var showSsoModal by remember { mutableStateOf(false) }
+
+    val validName = fullName.trim().length >= 3
+    val validTopic = researchTopic.trim().length >= 4
+    val isInstEmail = isValidInstitutionalEmail(email)
+
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = InstitutionalColors.Background
+    ) {
+        LazyColumn(
+            contentPadding = PaddingValues(24.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            item {
+                Spacer(Modifier.height(12.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Image(
+                        painter = painterResource(R.drawable.institutional_header_logo),
+                        contentDescription = "Emblema Carabineros ESUCAR",
+                        modifier = Modifier.size(60.dp),
+                        contentScale = androidx.compose.ui.layout.ContentScale.Fit
+                    )
+                    Spacer(Modifier.width(14.dp))
+                    Column {
+                        Text("ESUCAR", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = InstitutionalColors.GreenDark)
+                        Text("Escuela de Suboficiales", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = InstitutionalColors.Graphite)
+                    }
+                }
+                Spacer(Modifier.height(6.dp))
+            }
+
+            item {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = InstitutionalColors.Green),
+                    shape = RoundedCornerShape(20.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(Modifier.padding(20.dp)) {
+                        Text(
+                            "Bienvenido al Tutor Virtual ESUCAR",
+                            color = InstitutionalColors.White,
+                            fontSize = 22.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            "Acompañamiento metodológico oficial para la Escuela de Suboficiales de Carabineros de Chile.",
+                            color = InstitutionalColors.White.copy(alpha = 0.9f),
+                            fontSize = 13.sp
+                        )
+                    }
+                }
+            }
+
+            // --- ACCESO RAPIDO SSO INSTITUCIONAL ESTRUCTURADO ---
+            item {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = InstitutionalColors.White),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, InstitutionalColors.Border),
+                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.VerifiedUser, null, tint = InstitutionalColors.Green, modifier = Modifier.size(22.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("Acceso SSO Institucional Personalizable", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = InstitutionalColors.GreenDark)
+                        }
+                        Text(
+                            "Autentícate con tu credencial digital SSO de ESUCAR, Carabineros de Chile o ClaveÚnica.",
+                            fontSize = 12.sp,
+                            color = InstitutionalColors.Graphite
+                        )
+                        Button(
+                            onClick = { showSsoModal = true },
+                            modifier = Modifier.fillMaxWidth().height(46.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = InstitutionalColors.Navy)
+                        ) {
+                            Icon(Icons.Default.Lock, null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Ingresar con SSO Institucional", fontSize = 14.sp)
+                        }
+                    }
+                }
+            }
+
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    HorizontalDivider(Modifier.weight(1f), color = InstitutionalColors.Border)
+                    Text("  o completa tu perfil ESUCAR manualmente  ", fontSize = 12.sp, color = InstitutionalColors.Graphite)
+                    HorizontalDivider(Modifier.weight(1f), color = InstitutionalColors.Border)
+                }
+            }
+
+            // --- FORMULARIO MANUAL ESUCAR ---
+            item {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = InstitutionalColors.White),
+                    elevation = CardDefaults.cardElevation(2.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                        Text(
+                            "Perfil de Registro ESUCAR",
+                            fontSize = 17.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = InstitutionalColors.GreenDark
+                        )
+
+                        OutlinedTextField(
+                            value = email,
+                            onValueChange = { email = it },
+                            label = { Text("Correo Institucional (ej. usuario@esucar.cl)") },
+                            modifier = Modifier.fillMaxWidth(),
+                            leadingIcon = { Icon(Icons.Default.Email, null) },
+                            trailingIcon = {
+                                if (isInstEmail) Icon(Icons.Default.CheckCircle, "Dominio Verificado", tint = InstitutionalColors.Green)
+                            },
+                            supportingText = {
+                                if (email.isNotBlank()) {
+                                    if (isInstEmail) Text("Correo de dominio institucional verificado", color = InstitutionalColors.GreenDark, fontSize = 11.sp)
+                                    else Text("Sugerencia: Usa tu correo @esucar.cl o @carabineros.cl", fontSize = 11.sp)
+                                }
+                            }
+                        )
+
+                        ExposedDropdownMenuBox(
+                            expanded = rankExpanded,
+                            onExpandedChange = { rankExpanded = !rankExpanded }
+                        ) {
+                            OutlinedTextField(
+                                value = selectedRank,
+                                onValueChange = {},
+                                readOnly = true,
+                                label = { Text("Grado o Escalafón") },
+                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(rankExpanded) },
+                                modifier = Modifier.menuAnchor().fillMaxWidth(),
+                                leadingIcon = { Icon(Icons.Default.School, null) }
+                            )
+                            ExposedDropdownMenu(
+                                expanded = rankExpanded,
+                                onDismissRequest = { rankExpanded = false }
+                            ) {
+                                defaultRanks.forEach { rank ->
+                                    DropdownMenuItem(
+                                        text = { Text(rank) },
+                                        onClick = {
+                                            selectedRank = rank
+                                            rankExpanded = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+
+                        OutlinedTextField(
+                            value = fullName,
+                            onValueChange = { fullName = it },
+                            label = { Text("Nombre Completo del Estudiante") },
+                            modifier = Modifier.fillMaxWidth(),
+                            isError = submitted && !validName,
+                            supportingText = { if (submitted && !validName) Text("Ingresa al menos 3 caracteres") },
+                            leadingIcon = { Icon(Icons.Default.Person, null) }
+                        )
+
+                        OutlinedTextField(
+                            value = researchTopic,
+                            onValueChange = { researchTopic = it },
+                            label = { Text("Tema o Título del Trabajo de Título") },
+                            modifier = Modifier.fillMaxWidth(),
+                            isError = submitted && !validTopic,
+                            supportingText = { if (submitted && !validTopic) Text("Ingresa el tema de tu investigación") },
+                            leadingIcon = { Icon(Icons.Default.Book, null) }
+                        )
+
+                        // --- SELECTOR DE LOS 7 PROFESORES TUTORES ESUCAR ---
+                        ExposedDropdownMenuBox(
+                            expanded = tutorExpanded,
+                            onExpandedChange = { tutorExpanded = !tutorExpanded }
+                        ) {
+                            OutlinedTextField(
+                                value = selectedTutor,
+                                onValueChange = {},
+                                readOnly = true,
+                                label = { Text("Profesor Tutor / Asesor ESUCAR") },
+                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(tutorExpanded) },
+                                modifier = Modifier.menuAnchor().fillMaxWidth(),
+                                leadingIcon = { Icon(Icons.Default.SupervisedUserCircle, null) }
+                            )
+                            ExposedDropdownMenu(
+                                expanded = tutorExpanded,
+                                onDismissRequest = { tutorExpanded = false }
+                            ) {
+                                defaultEsucarTutors.forEach { tutor ->
+                                    DropdownMenuItem(
+                                        text = { Text(tutor, fontSize = 13.sp) },
+                                        onClick = {
+                                            selectedTutor = tutor
+                                            tutorExpanded = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+
+                        Spacer(Modifier.height(4.dp))
+
+                        Button(
+                            onClick = {
+                                submitted = true
+                                if (validName && validTopic) {
+                                    vm.loginUser(
+                                        rank = selectedRank,
+                                        fullName = fullName,
+                                        email = email,
+                                        researchTopic = researchTopic,
+                                        tutorName = selectedTutor,
+                                        ssoProvider = if (isInstEmail) "Correo Institucional Verificado" else "Correo Institucional ESUCAR"
+                                    )
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth().height(48.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = InstitutionalColors.Green)
+                        ) {
+                            Icon(Icons.Default.TaskAlt, null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Ingresar al Tutor Virtual ESUCAR", fontSize = 15.sp)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (showSsoModal) {
+        SsoCustomModal(
+            onDismiss = { showSsoModal = false },
+            onConfirmSso = { provider, rank, name, emailInput, topic, tutor ->
+                vm.loginUser(rank, name, emailInput, topic, tutor, provider)
+                showSsoModal = false
+            },
+            onQuickDemo = {
+                vm.loginQuickSSO("SSO ESUCAR (@esucar.cl)")
+                showSsoModal = false
+            }
+        )
+    }
+}
+
+@Composable
+private fun SsoCustomModal(
+    onDismiss: () -> Unit,
+    onConfirmSso: (provider: String, rank: String, name: String, email: String, topic: String, tutor: String) -> Unit,
+    onQuickDemo: () -> Unit
+) {
+    var selectedProvider by remember { mutableStateOf(ssoProviders.first()) }
+    var providerExpanded by remember { mutableStateOf(false) }
+
+    var selectedRank by remember { mutableStateOf(defaultRanks[3]) } // Sargento 2°
+    var rankExpanded by remember { mutableStateOf(false) }
+
+    var selectedTutor by remember { mutableStateOf(defaultEsucarTutors.first()) }
+    var tutorExpanded by remember { mutableStateOf(false) }
+
+    var ssoEmail by remember { mutableStateOf("marcos.soto@esucar.cl") }
+    var ssoName by remember { mutableStateOf("Marcos Soto R.") }
+    var ssoTopic by remember { mutableStateOf("Estrategias de Seguridad Preventiva Cuadrante") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.VerifiedUser, null, tint = InstitutionalColors.Green)
+                Spacer(Modifier.width(8.dp))
+                Text("Autenticación SSO Institucional", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+            }
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    "Selecciona el proveedor de SSO e ingresa o ajusta tus credenciales institucionales:",
+                    fontSize = 12.sp,
+                    color = InstitutionalColors.Graphite
+                )
+
+                ExposedDropdownMenuBox(expanded = providerExpanded, onExpandedChange = { providerExpanded = !providerExpanded }) {
+                    OutlinedTextField(
+                        value = selectedProvider,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Proveedor de SSO") },
+                        modifier = Modifier.menuAnchor().fillMaxWidth(),
+                        leadingIcon = { Icon(Icons.Default.Lock, null) }
+                    )
+                    ExposedDropdownMenu(expanded = providerExpanded, onDismissRequest = { providerExpanded = false }) {
+                        ssoProviders.forEach { prov ->
+                            DropdownMenuItem(text = { Text(prov) }, onClick = { selectedProvider = prov; providerExpanded = false })
+                        }
+                    }
+                }
+
+                OutlinedTextField(
+                    value = ssoEmail,
+                    onValueChange = { ssoEmail = it },
+                    label = { Text("Correo Institucional / RUN") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                ExposedDropdownMenuBox(expanded = rankExpanded, onExpandedChange = { rankExpanded = !rankExpanded }) {
+                    OutlinedTextField(
+                        value = selectedRank,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Grado Policial") },
+                        modifier = Modifier.menuAnchor().fillMaxWidth()
+                    )
+                    ExposedDropdownMenu(expanded = rankExpanded, onDismissRequest = { rankExpanded = false }) {
+                        defaultRanks.forEach { r ->
+                            DropdownMenuItem(text = { Text(r) }, onClick = { selectedRank = r; rankExpanded = false })
+                        }
+                    }
+                }
+
+                OutlinedTextField(
+                    value = ssoName,
+                    onValueChange = { ssoName = it },
+                    label = { Text("Nombre Completo") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                OutlinedTextField(
+                    value = ssoTopic,
+                    onValueChange = { ssoTopic = it },
+                    label = { Text("Tema del Trabajo de Título") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                ExposedDropdownMenuBox(expanded = tutorExpanded, onExpandedChange = { tutorExpanded = !tutorExpanded }) {
+                    OutlinedTextField(
+                        value = selectedTutor,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Profesor Tutor ESUCAR (Listado Oficial)") },
+                        modifier = Modifier.menuAnchor().fillMaxWidth()
+                    )
+                    ExposedDropdownMenu(expanded = tutorExpanded, onDismissRequest = { tutorExpanded = false }) {
+                        defaultEsucarTutors.forEach { t ->
+                            DropdownMenuItem(text = { Text(t, fontSize = 12.sp) }, onClick = { selectedTutor = t; tutorExpanded = false })
+                        }
+                    }
+                }
+
+                OutlinedButton(
+                    onClick = onQuickDemo,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Default.FlashOn, null)
+                    Spacer(Modifier.width(6.dp))
+                    Text("Cargar Datos Predeterminados ESUCAR", fontSize = 12.sp)
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    onConfirmSso(selectedProvider, selectedRank, ssoName, ssoEmail, ssoTopic, selectedTutor)
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = InstitutionalColors.Green)
+            ) {
+                Text("Autenticar SSO")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancelar") }
+        }
     )
 }
 
 @Composable
-private fun WelcomeBanner() {
-    Card(
-        colors = CardDefaults.cardColors(containerColor = InstitutionalColors.Green),
-        shape = RoundedCornerShape(22.dp)
+private fun ProfileDialog(profile: UserProfile, onDismiss: () -> Unit, vm: TutorViewModel) {
+    var rank by remember { mutableStateOf(profile.rank) }
+    var rankExpanded by remember { mutableStateOf(false) }
+    var name by remember { mutableStateOf(profile.fullName) }
+    var email by remember { mutableStateOf(profile.email) }
+    var topic by remember { mutableStateOf(profile.researchTopic) }
+    var tutor by remember { mutableStateOf(if (profile.tutorName.isBlank()) defaultEsucarTutors.first() else profile.tutorName) }
+    var tutorExpanded by remember { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Perfil del Estudiante ESUCAR", fontWeight = FontWeight.Bold) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Surface(
+                    color = InstitutionalColors.GreenSoft,
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.VerifiedUser, null, tint = InstitutionalColors.GreenDark, modifier = Modifier.size(20.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Autenticado con: ${profile.ssoProvider}", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = InstitutionalColors.GreenDark)
+                    }
+                }
+
+                ExposedDropdownMenuBox(expanded = rankExpanded, onExpandedChange = { rankExpanded = !rankExpanded }) {
+                    OutlinedTextField(
+                        value = rank,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Grado / Escalafón") },
+                        modifier = Modifier.menuAnchor().fillMaxWidth()
+                    )
+                    ExposedDropdownMenu(expanded = rankExpanded, onDismissRequest = { rankExpanded = false }) {
+                        defaultRanks.forEach { r ->
+                            DropdownMenuItem(text = { Text(r) }, onClick = { rank = r; rankExpanded = false })
+                        }
+                    }
+                }
+                OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Nombre Completo") }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = email, onValueChange = { email = it }, label = { Text("Correo Institucional") }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = topic, onValueChange = { topic = it }, label = { Text("Tema de Trabajo de Título") }, modifier = Modifier.fillMaxWidth())
+
+                ExposedDropdownMenuBox(expanded = tutorExpanded, onExpandedChange = { tutorExpanded = !tutorExpanded }) {
+                    OutlinedTextField(
+                        value = tutor,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Profesor Tutor ESUCAR") },
+                        modifier = Modifier.menuAnchor().fillMaxWidth()
+                    )
+                    ExposedDropdownMenu(expanded = tutorExpanded, onDismissRequest = { tutorExpanded = false }) {
+                        defaultEsucarTutors.forEach { t ->
+                            DropdownMenuItem(text = { Text(t, fontSize = 12.sp) }, onClick = { tutor = t; tutorExpanded = false })
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(onClick = {
+                vm.updateUserProfile(rank, name, email, topic, tutor)
+                onDismiss()
+            }, colors = ButtonDefaults.buttonColors(containerColor = InstitutionalColors.Green)) {
+                Text("Guardar Cambios")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = {
+                vm.logoutUser()
+                onDismiss()
+            }) {
+                Text("Cerrar Sesión", color = MaterialTheme.colorScheme.error)
+            }
+        }
+    )
+}
+
+@Composable
+private fun InstitutionalBrand() {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Start,
+        modifier = Modifier.fillMaxWidth()
     ) {
-        Column(Modifier.padding(20.dp)) {
+        Image(
+            painter = painterResource(R.drawable.institutional_header_logo),
+            contentDescription = "Emblema Carabineros de Chile ESUCAR",
+            modifier = Modifier.height(36.dp).width(32.dp),
+            contentScale = androidx.compose.ui.layout.ContentScale.Fit
+        )
+        Spacer(Modifier.width(10.dp))
+        Column {
             Text(
                 "Tutor Virtual ESUCAR",
                 color = InstitutionalColors.White,
-                fontSize = 22.sp,
+                fontSize = 17.sp,
                 fontWeight = FontWeight.Bold
             )
-            Spacer(Modifier.height(4.dp))
             Text(
-                "Acompañamiento institucional para tu Trabajo de Título.",
-                color = InstitutionalColors.White.copy(alpha = 0.9f),
-                fontSize = 14.sp
+                "Escuela de Suboficiales de Carabineros",
+                color = InstitutionalColors.White.copy(alpha = 0.85f),
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Medium
             )
-            Spacer(Modifier.height(14.dp))
-            Surface(
-                color = InstitutionalColors.White.copy(alpha = 0.14f),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Text(
-                    "Contenido disponible sin conexión",
-                    color = InstitutionalColors.White,
-                    fontSize = 12.sp,
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)
-                )
-            }
         }
     }
 }
@@ -162,8 +662,13 @@ private fun BottomBar(nav: NavHostController, currentDestination: androidx.navig
         contentColor = InstitutionalColors.White,
         tonalElevation = 0.dp
     ) {
-        listOf("dashboard" to Icons.Default.Home to "Inicio", "guide" to Icons.Default.MenuBook to "Guía",
-            "faq" to Icons.Default.Search to "FAQ", "deliverables" to Icons.Default.TaskAlt to "Hitos").forEach { (entry, label) ->
+        listOf(
+            "dashboard" to Icons.Default.Home to "Inicio",
+            "guide" to Icons.Default.MenuBook to "Guía",
+            "study" to Icons.Default.Timer to "Estudio",
+            "faq" to Icons.Default.Search to "FAQ",
+            "deliverables" to Icons.Default.TaskAlt to "Hitos"
+        ).forEach { (entry, label) ->
             NavigationBarItem(
                 selected = currentDestination?.route == entry.first,
                 onClick = { nav.navigate(entry.first) { launchSingleTop = true } },
@@ -182,25 +687,63 @@ private fun BottomBar(nav: NavHostController, currentDestination: androidx.navig
 }
 
 @Composable
-private fun Dashboard(vm: TutorViewModel, nav: NavHostController) {
+private fun Dashboard(vm: TutorViewModel, nav: NavHostController, onOpenProfile: () -> Unit) {
     val deliverables by vm.deliverables.collectAsState()
     val checklist by vm.checklist.collectAsState()
+    val profile by vm.userProfile.collectAsState()
     val summary = calculateProgress(deliverables, vm.stages, checklist)
     val progress by animateFloatAsState(summary.fraction, label = "progress")
+
     LazyColumn(contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         item {
             AnimatedVisibility(true, enter = fadeIn() + slideInVertically()) {
                 Column {
-                    Text("Hola, estudiante", fontSize = 28.sp, fontWeight = FontWeight.Bold)
+                    Text("Hola, ${profile.rank} ${profile.fullName}".trim(), fontSize = 24.sp, fontWeight = FontWeight.Bold)
                     Text("Avanza con claridad en tu Trabajo de Título.", color = InstitutionalColors.Graphite)
                 }
             }
         }
-        item { WelcomeBanner() }
+
+        if (profile.researchTopic.isNotBlank()) {
+            item {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = InstitutionalColors.Green),
+                    shape = RoundedCornerShape(18.dp),
+                    modifier = Modifier.fillMaxWidth().clickable { onOpenProfile() }
+                ) {
+                    Column(Modifier.padding(18.dp)) {
+                        Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.VerifiedUser, null, tint = InstitutionalColors.Lime, modifier = Modifier.size(16.dp))
+                                Spacer(Modifier.width(6.dp))
+                                Text(
+                                    "PROYECTO REGISTRADO (${profile.ssoProvider.uppercase()})",
+                                    color = InstitutionalColors.Lime,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            Icon(Icons.Default.Edit, "Editar Perfil", tint = InstitutionalColors.White, modifier = Modifier.size(18.dp))
+                        }
+                        Spacer(Modifier.height(6.dp))
+                        Text(profile.researchTopic, color = InstitutionalColors.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                        if (profile.email.isNotBlank()) {
+                            Spacer(Modifier.height(4.dp))
+                            Text("Correo: ${profile.email}", color = InstitutionalColors.White.copy(0.9f), fontSize = 12.sp)
+                        }
+                        if (profile.tutorName.isNotBlank()) {
+                            Spacer(Modifier.height(2.dp))
+                            Text("Profesor Tutor: ${profile.tutorName}", color = InstitutionalColors.White.copy(0.9f), fontSize = 12.sp)
+                        }
+                    }
+                }
+            }
+        }
+
         item {
             Card(colors = CardDefaults.cardColors(containerColor = InstitutionalColors.GreenSoft), shape = RoundedCornerShape(20.dp)) {
                 Column(Modifier.padding(20.dp)) {
-                    Text("Progreso general", fontWeight = FontWeight.Bold)
+                    Text("Progreso general del proyecto", fontWeight = FontWeight.Bold)
                     Text("${(progress * 100).toInt()}% de avance general", fontSize = 26.sp, fontWeight = FontWeight.Bold)
                     Spacer(Modifier.height(10.dp))
                     LinearProgressIndicator(
@@ -219,17 +762,25 @@ private fun Dashboard(vm: TutorViewModel, nav: NavHostController) {
                 }
             }
         }
+
         item { SectionTitle("Próximo paso", "Ver guía metodológica") { nav.navigate("guide") } }
+
         item {
-            val next = deliverables.firstOrNull { it.status != DeliverableStatus.APPROVED }
-            if (next != null) DeliverableCard(next, vm)
+            deliverables.firstOrNull { it.status != DeliverableStatus.APPROVED }?.let { next ->
+                DeliverableCard(next, vm)
+            }
         }
+
         item { SectionTitle("Accesos rápidos", null) {} }
-        item { Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            QuickAction("Guía", Icons.Default.MenuBook) { nav.navigate("guide") }
-            QuickAction("Preguntas", Icons.Default.QuestionMark) { nav.navigate("faq") }
-            QuickAction("Hitos", Icons.Default.TaskAlt) { nav.navigate("deliverables") }
-        }}
+
+        item {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                QuickAction("Guía", Icons.Default.MenuBook) { nav.navigate("guide") }
+                QuickAction("Estudio", Icons.Default.Timer) { nav.navigate("study") }
+                QuickAction("Preguntas", Icons.Default.QuestionMark) { nav.navigate("faq") }
+                QuickAction("Hitos", Icons.Default.TaskAlt) { nav.navigate("deliverables") }
+            }
+        }
     }
 }
 
@@ -237,7 +788,7 @@ private fun Dashboard(vm: TutorViewModel, nav: NavHostController) {
 private fun SectionTitle(title: String, action: String?, onClick: () -> Unit) {
     Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
         Text(title, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-        if (action != null)         Text(action, color = InstitutionalColors.Navy, modifier = Modifier.clickable { onClick() })
+        if (action != null) Text(action, color = InstitutionalColors.Navy, modifier = Modifier.clickable { onClick() })
     }
 }
 
@@ -247,22 +798,65 @@ private fun RowScope.QuickAction(label: String, icon: androidx.compose.ui.graphi
         modifier = Modifier.weight(1f).clickable { onClick() },
         colors = CardDefaults.cardColors(containerColor = InstitutionalColors.White),
         border = androidx.compose.foundation.BorderStroke(1.dp, InstitutionalColors.Border)
-    ) { Column(Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Icon(icon, null, tint = InstitutionalColors.Green); Text(label, fontSize = 12.sp)
-    }}
+    ) {
+        Column(Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(icon, null, tint = InstitutionalColors.Green)
+            Spacer(Modifier.height(4.dp))
+            Text(label, fontSize = 12.sp)
+        }
+    }
 }
 
 @Composable
 private fun Guide(vm: TutorViewModel, nav: NavHostController) {
+    val checklist by vm.checklist.collectAsState()
+
     LazyColumn(contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        item { Text("Guía metodológica", fontSize = 28.sp, fontWeight = FontWeight.Bold); Text("Cinco etapas para ordenar tu investigación.") }
+        item {
+            Text("Guía metodológica", fontSize = 28.sp, fontWeight = FontWeight.Bold)
+            Text("Cinco etapas estructuradas para tu Trabajo de Título.")
+        }
+
         items(vm.stages) { stage ->
+            val completedCount = checklist[stage.id].orEmpty().count { it in stage.checklist.indices }
+            val totalCount = stage.checklist.size
+            val stageProgress = if (totalCount == 0) 0f else completedCount.toFloat() / totalCount
+
             Card(Modifier.fillMaxWidth().clickable { nav.navigate("stage/${stage.id}") }) {
-                Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(12.dp).background(Color(stage.color), RoundedCornerShape(6.dp)))
-                    Spacer(Modifier.width(14.dp)); Column(Modifier.weight(1f)) {
-                        Text(stage.title, fontWeight = FontWeight.Bold); Text(stage.description, maxLines = 2, color = InstitutionalColors.Graphite)
-                    }; Icon(Icons.Default.ChevronRight, null)
+                Column(Modifier.padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.size(12.dp).background(Color(stage.color), RoundedCornerShape(6.dp)))
+                        Spacer(Modifier.width(14.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(stage.title, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                            Text(stage.description, maxLines = 2, color = InstitutionalColors.Graphite, fontSize = 13.sp)
+                        }
+                        Icon(Icons.Default.ChevronRight, null)
+                    }
+
+                    Spacer(Modifier.height(10.dp))
+                    Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+                        Text("$completedCount de $totalCount tareas completadas", fontSize = 12.sp, color = InstitutionalColors.Graphite)
+                        Surface(
+                            color = if (completedCount == totalCount) InstitutionalColors.GreenSoft else Color(0xFFF0F0F0),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text(
+                                if (completedCount == totalCount) "Completada" else "${(stageProgress * 100).toInt()}%",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (completedCount == totalCount) InstitutionalColors.GreenDark else InstitutionalColors.Graphite,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(6.dp))
+                    LinearProgressIndicator(
+                        progress = { stageProgress },
+                        modifier = Modifier.fillMaxWidth().height(6.dp),
+                        color = Color(stage.color),
+                        trackColor = Color(stage.color).copy(alpha = 0.15f)
+                    )
                 }
             }
         }
@@ -273,119 +867,647 @@ private fun Guide(vm: TutorViewModel, nav: NavHostController) {
 private fun StageDetail(vm: TutorViewModel, stage: Stage, nav: NavHostController) {
     val context = LocalContext.current
     val checklist by vm.checklist.collectAsState()
+    val stageNotes by vm.stageNotes.collectAsState()
+
+    var noteText by remember(stage.id) { mutableStateOf(stageNotes[stage.id] ?: "") }
     var bitmap by remember { mutableStateOf<Bitmap?>(null) }
     var documentName by remember { mutableStateOf<String?>(null) }
+
     val camera = rememberLauncherForActivityResult(ActivityResultContracts.TakePicturePreview()) { bitmap = it }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { documentName = it?.lastPathSegment }
     val cameraPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) camera.launch(null) else Toast.makeText(context, "Se necesita permiso de cámara para registrar evidencia", Toast.LENGTH_SHORT).show()
+        if (granted) camera.launch(null)
+        else Toast.makeText(context, "Se necesita permiso de cámara para registrar evidencia", Toast.LENGTH_SHORT).show()
     }
+
     LazyColumn(contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        item { Text(stage.title, fontSize = 30.sp, fontWeight = FontWeight.Bold); Text(stage.description, fontSize = 17.sp) }
-        item { AssistChip(onClick = {}, label = { Text("Formato requerido: ${stage.format}") }, leadingIcon = { Icon(Icons.Default.Description, null) }) }
-        item { Text("Checklist", fontSize = 20.sp, fontWeight = FontWeight.Bold) }
+        item {
+            Text(stage.title, fontSize = 28.sp, fontWeight = FontWeight.Bold)
+            Text(stage.description, fontSize = 16.sp)
+        }
+
+        item {
+            AssistChip(
+                onClick = {},
+                label = { Text("Formato requerido: ${stage.format}") },
+                leadingIcon = { Icon(Icons.Default.Description, null) }
+            )
+        }
+
+        item { Text("Checklist de la Etapa", fontSize = 20.sp, fontWeight = FontWeight.Bold) }
+
         items(stage.checklist.indices.toList()) { index ->
             val check = stage.checklist[index]
             val done = checklist[stage.id].orEmpty().contains(index)
-            Row(Modifier.fillMaxWidth().clickable { vm.setChecklistItem(stage.id, index, !done) }.padding(vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
-                Checkbox(done, { vm.setChecklistItem(stage.id, index, it) }); Text(check, modifier = Modifier.alpha(if (done) .55f else 1f))
-        }}
-        item {
-            Card { Column(Modifier.padding(16.dp)) {
-                Text("Recursos nativos", fontWeight = FontWeight.Bold)
-                Text("Registra una evidencia con cámara o adjunta un documento.")
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(
-                        onClick = {
-                        if (ActivityCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) camera.launch(null)
-                        else cameraPermission.launch(Manifest.permission.CAMERA)
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = InstitutionalColors.Green)
-                    ) { Icon(Icons.Default.CameraAlt, null); Spacer(Modifier.width(6.dp)); Text("Cámara") }
-                            OutlinedButton(
-                                onClick = { picker.launch(arrayOf("application/pdf", "text/*", "image/*")) },
-                                colors = ButtonDefaults.outlinedButtonColors(contentColor = InstitutionalColors.Navy)
-                            ) { Icon(Icons.Default.AttachFile, null); Spacer(Modifier.width(6.dp)); Text("Adjuntar") }
-                }
-                bitmap?.let { Image(it.asImageBitmap(), "Evidencia", Modifier.fillMaxWidth().height(150.dp)) }
-                documentName?.let { Text("Documento seleccionado: $it", color = InstitutionalColors.Navy) }
-            }}
+            Row(
+                Modifier.fillMaxWidth().clickable { vm.setChecklistItem(stage.id, index, !done) }.padding(vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Checkbox(checked = done, onCheckedChange = { vm.setChecklistItem(stage.id, index, it) })
+                Text(check, modifier = Modifier.alpha(if (done) 0.55f else 1f))
+            }
         }
+
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = InstitutionalColors.White),
+                border = androidx.compose.foundation.BorderStroke(1.dp, InstitutionalColors.Border)
+            ) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Bitácora del Estudiante / Apuntes", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Text("Escribe aquí tus dudas para tu Profesor Tutor o ideas de tu avance. Se guarda automáticamente.", fontSize = 12.sp, color = InstitutionalColors.Graphite)
+                    OutlinedTextField(
+                        value = noteText,
+                        onValueChange = {
+                            noteText = it
+                            vm.saveStageNote(stage.id, it)
+                        },
+                        placeholder = { Text("Ej. Consultar con tutor sobre la matriz de datos...") },
+                        modifier = Modifier.fillMaxWidth().height(110.dp),
+                        maxLines = 4
+                    )
+                }
+            }
+        }
+
+        item {
+            Card {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Evidencias del Trabajo", fontWeight = FontWeight.Bold)
+                    Text("Registra evidencias con la cámara o adjunta archivos de avance.")
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(
+                            onClick = {
+                                if (ActivityCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) camera.launch(null)
+                                else cameraPermission.launch(Manifest.permission.CAMERA)
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = InstitutionalColors.Green)
+                        ) {
+                            Icon(Icons.Default.CameraAlt, null)
+                            Spacer(Modifier.width(6.dp))
+                            Text("Cámara")
+                        }
+
+                        OutlinedButton(
+                            onClick = { picker.launch(arrayOf("application/pdf", "text/*", "image/*")) },
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = InstitutionalColors.Navy)
+                        ) {
+                            Icon(Icons.Default.AttachFile, null)
+                            Spacer(Modifier.width(6.dp))
+                            Text("Adjuntar")
+                        }
+                    }
+                    bitmap?.let { Image(it.asImageBitmap(), "Evidencia", Modifier.fillMaxWidth().height(150.dp)) }
+                    documentName?.let { Text("Documento seleccionado: $it", color = InstitutionalColors.Navy) }
+                }
+            }
+        }
+
         item { TextButton(onClick = { nav.popBackStack() }) { Text("Volver a la guía") } }
     }
 }
 
 @Composable
-private fun FaqScreen(vm: TutorViewModel) {
-    var query by remember { mutableStateOf("") }; var category by remember { mutableStateOf("Todas") }
-    val categories = listOf("Todas", "Metodología", "Citación APA", "Formato")
-    val filtered = vm.faqs.filter { (category == "Todas" || it.category == category) && (query.isBlank() || it.question.contains(query, true) || it.answer.contains(query, true)) }
-    LazyColumn(contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        item { Text("Preguntas frecuentes", fontSize = 28.sp, fontWeight = FontWeight.Bold)
-            OutlinedTextField(query, { query = it }, Modifier.fillMaxWidth(), label = { Text("Buscar por palabra clave") }, leadingIcon = { Icon(Icons.Default.Search, null) })
-            Spacer(Modifier.height(8.dp)); Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) { categories.forEach { FilterChip(selected = category == it, onClick = { category = it }, label = { Text(it) }) } }
+private fun StudyToolsScreen(vm: TutorViewModel) {
+    val context = LocalContext.current
+    val seconds by vm.pomodoroSeconds.collectAsState()
+    val isRunning by vm.isPomodoroRunning.collectAsState()
+    val mode by vm.pomodoroMode.collectAsState()
+
+    var apaType by remember { mutableStateOf("Ley") }
+    var apaAuthor by remember { mutableStateOf("") }
+    var apaYear by remember { mutableStateOf("") }
+    var apaTitle by remember { mutableStateOf("") }
+    var apaSource by remember { mutableStateOf("") }
+
+    val generatedCitation = remember(apaType, apaAuthor, apaYear, apaTitle, apaSource) {
+        generateApaCitation(apaType, apaAuthor, apaYear, apaTitle, apaSource)
+    }
+
+    LazyColumn(contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
+        item {
+            Text("Herramientas de Estudio", fontSize = 28.sp, fontWeight = FontWeight.Bold)
+            Text("Métodos y utilidades pedagógicas para optimizar tu tiempo académico.")
         }
-        items(filtered) { faq -> var expanded by remember { mutableStateOf(false) }; Card(Modifier.fillMaxWidth().clickable { expanded = !expanded }) { Column(Modifier.padding(16.dp)) {
-            Text(faq.category.uppercase(), color = InstitutionalColors.Green, fontSize = 12.sp, fontWeight = FontWeight.Bold); Text(faq.question, fontWeight = FontWeight.Bold)
-            AnimatedVisibility(expanded) { Text(faq.answer, Modifier.padding(top = 8.dp), color = InstitutionalColors.Graphite) }
-        }}}
+
+        // --- SECTION A: POMODORO TIMER ---
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = InstitutionalColors.GreenDark),
+                shape = RoundedCornerShape(20.dp)
+            ) {
+                Column(
+                    Modifier.padding(20.dp).fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        if (mode == "study") "MÉTODO POMODORO: BLOQUE DE ENFOQUE" else "MÉTODO POMODORO: DESCANSO",
+                        color = InstitutionalColors.Lime,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(Modifier.height(8.dp))
+
+                    val minutesStr = "%02d".format(seconds / 60)
+                    val secondsStr = "%02d".format(seconds % 60)
+
+                    Text(
+                        "$minutesStr:$secondsStr",
+                        fontSize = 48.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = InstitutionalColors.White
+                    )
+
+                    Text(
+                        if (mode == "study") "25 min de lectura/redacción sin distracciones" else "5 min para pausar y descansar",
+                        fontSize = 12.sp,
+                        color = InstitutionalColors.White.copy(0.85f)
+                    )
+
+                    Spacer(Modifier.height(14.dp))
+
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        if (!isRunning) {
+                            Button(
+                                onClick = { vm.startPomodoro() },
+                                colors = ButtonDefaults.buttonColors(containerColor = InstitutionalColors.Lime)
+                            ) {
+                                Icon(Icons.Default.PlayArrow, null, tint = Color.Black)
+                                Spacer(Modifier.width(4.dp))
+                                Text("Iniciar", color = Color.Black)
+                            }
+                        } else {
+                            Button(
+                                onClick = { vm.pausePomodoro() },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFB74D))
+                            ) {
+                                Icon(Icons.Default.Pause, null, tint = Color.Black)
+                                Spacer(Modifier.width(4.dp))
+                                Text("Pausar", color = Color.Black)
+                            }
+                        }
+
+                        OutlinedButton(
+                            onClick = { vm.resetPomodoro() },
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = InstitutionalColors.White)
+                        ) {
+                            Icon(Icons.Default.Refresh, null)
+                            Spacer(Modifier.width(4.dp))
+                            Text("Reiniciar")
+                        }
+                    }
+                }
+            }
+        }
+
+        // --- SECTION B: GENERADOR CITAS APA 7 INSTITUCIONAL ---
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = InstitutionalColors.White),
+                border = androidx.compose.foundation.BorderStroke(1.dp, InstitutionalColors.Border)
+            ) {
+                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Generador de Citas APA 7 (Leyes y Reglamentos)", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        listOf("Ley", "Reglamento", "Libro").forEach { t ->
+                            FilterChip(
+                                selected = apaType == t,
+                                onClick = { apaType = t },
+                                label = { Text(t) }
+                            )
+                        }
+                    }
+
+                    OutlinedTextField(
+                        value = apaAuthor,
+                        onValueChange = { apaAuthor = it },
+                        label = { Text(if (apaType == "Ley") "Ministerio / Emisor (Ej. Min. Defensa)" else "Autor / Institución") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(
+                            value = apaYear,
+                            onValueChange = { apaYear = it },
+                            label = { Text("Año") },
+                            modifier = Modifier.weight(1f)
+                        )
+                        OutlinedTextField(
+                            value = apaTitle,
+                            onValueChange = { apaTitle = it },
+                            label = { Text(if (apaType == "Ley") "N° Ley / Título" else "Título") },
+                            modifier = Modifier.weight(2f)
+                        )
+                    }
+
+                    OutlinedTextField(
+                        value = apaSource,
+                        onValueChange = { apaSource = it },
+                        label = { Text("Fuente / Repositorio (Ej. Biblioteca del Congreso / Dirección General)") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Spacer(Modifier.height(4.dp))
+
+                    Surface(
+                        color = InstitutionalColors.GreenSoft,
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(Modifier.padding(12.dp)) {
+                            Text("Cita Generada en Formato APA 7:", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = InstitutionalColors.GreenDark)
+                            Spacer(Modifier.height(4.dp))
+                            Text(generatedCitation, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                            Spacer(Modifier.height(8.dp))
+                            Button(
+                                onClick = {
+                                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                    val clip = android.content.ClipData.newPlainText("Cita APA 7", generatedCitation)
+                                    clipboard.setPrimaryClip(clip)
+                                    Toast.makeText(context, "Cita copiada al portapapeles", Toast.LENGTH_SHORT).show()
+                                },
+                                modifier = Modifier.align(Alignment.End),
+                                colors = ButtonDefaults.buttonColors(containerColor = InstitutionalColors.Green)
+                            ) {
+                                Icon(Icons.Default.ContentCopy, null, modifier = Modifier.size(16.dp))
+                                Spacer(Modifier.width(6.dp))
+                                Text("Copiar Cita", fontSize = 12.sp)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // --- SECTION C: MATRIZ DE CONSISTENCIA ---
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = InstitutionalColors.White),
+                border = androidx.compose.foundation.BorderStroke(1.dp, InstitutionalColors.Border)
+            ) {
+                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Guía de Matriz de Consistencia Metodológica", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    Text("Asegúrate de que los 5 elementos de tu Trabajo de Título estén alineados:", fontSize = 13.sp, color = InstitutionalColors.Graphite)
+
+                    listOf(
+                        "1. Problema" to "Situación operacional/policial que requiere diagnóstico o propuesta de solución.",
+                        "2. Pregunta" to "¿Cómo/Qué/De qué manera influye el problema en la función institucional?",
+                        "3. Obj. General" to "Verbo en infinitivo + responde directamente a la pregunta de investigación.",
+                        "4. Obj. Específicos" to "Pasos ordenados para cumplir el objetivo general (ej. Diagnosticar, Analizar, Proponer).",
+                        "5. Metodología" to "Enfoque (cuantitativo/cualitativo), población/muestra e instrumentos de recolección."
+                    ).forEach { (title, desc) ->
+                        Row(Modifier.padding(vertical = 2.dp)) {
+                            Text(title, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = InstitutionalColors.GreenDark, modifier = Modifier.width(105.dp))
+                            Text(desc, fontSize = 13.sp, color = InstitutionalColors.Graphite)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FaqScreen(vm: TutorViewModel) {
+    var query by remember { mutableStateOf("") }
+    var category by remember { mutableStateOf("Todas") }
+    val categories = listOf("Todas", "Metodología", "Citación APA", "Formato", "Estudio")
+
+    val filtered = vm.faqs.filter { faq ->
+        (category == "Todas" || faq.category == category) &&
+            (query.isBlank() || faq.question.contains(query, true) || faq.answer.contains(query, true))
+    }
+
+    LazyColumn(contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        item {
+            Text("Preguntas frecuentes", fontSize = 28.sp, fontWeight = FontWeight.Bold)
+            OutlinedTextField(
+                value = query,
+                onValueChange = { query = it },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Buscar por palabra clave") },
+                leadingIcon = { Icon(Icons.Default.Search, null) }
+            )
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                categories.forEach { cat ->
+                    FilterChip(
+                        selected = category == cat,
+                        onClick = { category = cat },
+                        label = { Text(cat) }
+                    )
+                }
+            }
+        }
+
+        if (filtered.isEmpty()) {
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth().padding(top = 20.dp),
+                    colors = CardDefaults.cardColors(containerColor = InstitutionalColors.White)
+                ) {
+                    Column(
+                        Modifier.padding(24.dp).fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(Icons.Default.SearchOff, null, tint = InstitutionalColors.Graphite, modifier = Modifier.size(48.dp))
+                        Spacer(Modifier.height(8.dp))
+                        Text("Sin resultados", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        Text("No encontramos respuestas para '$query'. Intenta buscar otro término.", fontSize = 13.sp, color = InstitutionalColors.Graphite)
+                    }
+                }
+            }
+        } else {
+            items(filtered) { faq ->
+                var expanded by remember { mutableStateOf(false) }
+                Card(Modifier.fillMaxWidth().clickable { expanded = !expanded }) {
+                    Column(Modifier.padding(16.dp)) {
+                        Text(faq.category.uppercase(), color = InstitutionalColors.Green, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.height(2.dp))
+                        Text(faq.question, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                        AnimatedVisibility(expanded) {
+                            Text(faq.answer, Modifier.padding(top = 8.dp), color = InstitutionalColors.Graphite, fontSize = 14.sp)
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
 @Composable
 private fun Deliverables(vm: TutorViewModel) {
-    val items by vm.deliverables.collectAsState(); var showAdd by remember { mutableStateOf(false) }; val context = LocalContext.current
+    val items by vm.deliverables.collectAsState()
+    var showAddDialog by remember { mutableStateOf(false) }
+    var editingDeliverable by remember { mutableStateOf<Deliverable?>(null) }
+    var deletingDeliverable by remember { mutableStateOf<Deliverable?>(null) }
+
+    val context = LocalContext.current
     val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) showDeadlineNotification(context)
     }
+
     LazyColumn(contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        item { Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) { Text("Mis hitos", fontSize = 28.sp, fontWeight = FontWeight.Bold); FloatingActionButton(onClick = { showAdd = true }, modifier = Modifier.size(48.dp)) { Icon(Icons.Default.Add, "Agregar") } } }
-        items(items) { DeliverableCard(it, vm) }
         item {
-            OutlinedButton(onClick = {
-                if (android.os.Build.VERSION.SDK_INT >= 33 &&
-                    ActivityCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
-                ) notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
-                else showDeadlineNotification(context)
-            }, Modifier.fillMaxWidth()) {
-                Icon(Icons.Default.Notifications, null); Spacer(Modifier.width(8.dp)); Text("Activar recordatorios")
+            Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+                Text("Mis hitos académicos", fontSize = 26.sp, fontWeight = FontWeight.Bold)
+                FloatingActionButton(onClick = { showAddDialog = true }, modifier = Modifier.size(44.dp)) {
+                    Icon(Icons.Default.Add, "Agregar Hito")
+                }
+            }
+        }
+
+        items(items) { item ->
+            DeliverableCardWithActions(
+                item = item,
+                vm = vm,
+                onEdit = { editingDeliverable = item },
+                onDelete = { deletingDeliverable = item }
+            )
+        }
+
+        item {
+            OutlinedButton(
+                onClick = {
+                    if (Build.VERSION.SDK_INT >= 33 &&
+                        ActivityCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+                    ) {
+                        notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    } else {
+                        showDeadlineNotification(context)
+                    }
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(Icons.Default.Notifications, null)
+                Spacer(Modifier.width(8.dp))
+                Text("Activar recordatorios periódicos")
             }
         }
     }
-    if (showAdd) AddDeliverableDialog({ showAdd = false }, vm)
+
+    if (showAddDialog) {
+        AddEditDeliverableDialog(
+            item = null,
+            onDismiss = { showAddDialog = false },
+            onConfirm = { title, date ->
+                vm.addDeliverable(title, date)
+                showAddDialog = false
+            }
+        )
+    }
+
+    editingDeliverable?.let { item ->
+        AddEditDeliverableDialog(
+            item = item,
+            onDismiss = { editingDeliverable = null },
+            onConfirm = { title, date ->
+                vm.updateDeliverable(item.id, title, date, item.status)
+                editingDeliverable = null
+            }
+        )
+    }
+
+    deletingDeliverable?.let { item ->
+        AlertDialog(
+            onDismissRequest = { deletingDeliverable = null },
+            title = { Text("Eliminar Hito") },
+            text = { Text("¿Deseas eliminar el hito '${item.title}'?") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        vm.deleteDeliverable(item.id)
+                        deletingDeliverable = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) { Text("Eliminar") }
+            },
+            dismissButton = {
+                TextButton(onClick = { deletingDeliverable = null }) { Text("Cancelar") }
+            }
+        )
+    }
+}
+
+@Composable
+private fun DeliverableCardWithActions(
+    item: Deliverable,
+    vm: TutorViewModel,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit
+) {
+    val urgency = calculateUrgency(item.dueDate)
+
+    Card(
+        colors = CardDefaults.cardColors(containerColor = InstitutionalColors.White),
+        border = androidx.compose.foundation.BorderStroke(1.dp, InstitutionalColors.Border)
+    ) {
+        Column(Modifier.padding(16.dp)) {
+            Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(item.title, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Spacer(Modifier.height(2.dp))
+                    Text("Fecha límite: ${item.dueDate}", color = InstitutionalColors.Graphite, fontSize = 13.sp)
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    StatusBadge(item.status)
+                    IconButton(onClick = onEdit, modifier = Modifier.size(32.dp)) {
+                        Icon(Icons.Default.Edit, "Editar", tint = InstitutionalColors.Green, modifier = Modifier.size(18.dp))
+                    }
+                    IconButton(onClick = onDelete, modifier = Modifier.size(32.dp)) {
+                        Icon(Icons.Default.Delete, "Eliminar", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp))
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(8.dp))
+
+            Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+                UrgencyBadge(urgency)
+
+                var expanded by remember { mutableStateOf(false) }
+                ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = !expanded }) {
+                    OutlinedTextField(
+                        value = item.status.label,
+                        onValueChange = {},
+                        readOnly = true,
+                        modifier = Modifier.menuAnchor().width(160.dp),
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) }
+                    )
+                    ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                        DeliverableStatus.entries.forEach { status ->
+                            DropdownMenuItem(
+                                text = { Text(status.label) },
+                                onClick = {
+                                    vm.updateStatus(item.id, status)
+                                    expanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 @Composable
 private fun DeliverableCard(item: Deliverable, vm: TutorViewModel) {
-    Card { Column(Modifier.padding(16.dp)) {
-        Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) { Text(item.title, fontWeight = FontWeight.Bold); StatusBadge(item.status) }
-        Text("Fecha límite: ${item.dueDate}", color = InstitutionalColors.Graphite); Spacer(Modifier.height(8.dp))
-        var expanded by remember { mutableStateOf(false) }
-        ExposedDropdownMenuBox(expanded, { expanded = !expanded }) { OutlinedTextField(item.status.label, {}, Modifier.menuAnchor().fillMaxWidth(), readOnly = true, label = { Text("Estado") }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) })
-            ExposedDropdownMenu(expanded, { expanded = false }) { DeliverableStatus.entries.forEach { status -> DropdownMenuItem(text = { Text(status.label) }, onClick = { vm.updateStatus(item.id, status); expanded = false }) } }
-        }
-    }}
+    DeliverableCardWithActions(item = item, vm = vm, onEdit = {}, onDelete = {})
+}
+
+@Composable
+private fun UrgencyBadge(urgency: DeliverableUrgency) {
+    val (bgColor, textColor, label) = when (urgency) {
+        DeliverableUrgency.EXPIRED -> Triple(Color(0xFFFFEBEE), Color(0xFFC62828), "Vencido")
+        DeliverableUrgency.URGENT -> Triple(Color(0xFFFFF3E0), Color(0xFFE65100), "Vence pronto (<= 3 días)")
+        DeliverableUrgency.UPCOMING -> Triple(Color(0xFFE8F5E9), Color(0xFF2E7D32), "Próximo (<= 7 días)")
+        DeliverableUrgency.NORMAL -> Triple(Color(0xFFF5F5F5), Color(0xFF616161), "A tiempo")
+    }
+
+    Surface(color = bgColor, shape = RoundedCornerShape(12.dp)) {
+        Text(
+            label,
+            color = textColor,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+        )
+    }
 }
 
 @Composable
 private fun StatusBadge(status: DeliverableStatus) {
-    Surface(color = when (status) { DeliverableStatus.APPROVED -> Color(0xFFD8F3DC); DeliverableStatus.SUBMITTED -> Color(0xFFFFE8B6); else -> Color(0xFFE8EDF2) }, shape = RoundedCornerShape(20.dp)) { Text(status.label, Modifier.padding(horizontal = 10.dp, vertical = 5.dp), fontSize = 12.sp) }
+    Surface(
+        color = when (status) {
+            DeliverableStatus.APPROVED -> Color(0xFFD8F3DC)
+            DeliverableStatus.SUBMITTED -> Color(0xFFFFE8B6)
+            DeliverableStatus.IN_PROGRESS -> Color(0xFFE2F0D9)
+            else -> Color(0xFFE8EDF2)
+        },
+        shape = RoundedCornerShape(20.dp)
+    ) {
+        Text(
+            status.label,
+            Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            color = InstitutionalColors.GreenDark
+        )
+    }
 }
 
 @Composable
-private fun AddDeliverableDialog(onDismiss: () -> Unit, vm: TutorViewModel) {
-    var title by remember { mutableStateOf("") }; var date by remember { mutableStateOf("") }; var submitted by remember { mutableStateOf(false) }
-    val validTitle = title.trim().length >= 3; val validDate = date.trim().length >= 4
-    AlertDialog(onDismissRequest = onDismiss, title = { Text("Nuevo hito") }, text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        OutlinedTextField(title, { title = it }, Modifier.fillMaxWidth(), label = { Text("Nombre del hito") }, isError = submitted && !validTitle, supportingText = { if (submitted && !validTitle) Text("Ingresa al menos 3 caracteres") }, leadingIcon = { Icon(Icons.Default.Title, null) })
-        OutlinedTextField(date, { date = it }, Modifier.fillMaxWidth(), label = { Text("Fecha límite (ej. 20 dic 2026)") }, isError = submitted && !validDate, supportingText = { if (submitted && !validDate) Text("Indica una fecha para organizarte") }, leadingIcon = { Icon(Icons.Default.Event, null) })
-    }}, confirmButton = { Button(onClick = { submitted = true; if (validTitle && validDate) { vm.addDeliverable(title.trim(), date.trim()); onDismiss() } }) { Text("Guardar") } }, dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } })
+private fun AddEditDeliverableDialog(
+    item: Deliverable?,
+    onDismiss: () -> Unit,
+    onConfirm: (title: String, dueDate: String) -> Unit
+) {
+    var title by remember { mutableStateOf(item?.title ?: "") }
+    var date by remember { mutableStateOf(item?.dueDate ?: "") }
+    var submitted by remember { mutableStateOf(false) }
+
+    val validTitle = title.trim().length >= 3
+    val validDate = date.trim().length >= 4
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(if (item == null) "Nuevo Hito Académico" else "Editar Hito") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = title,
+                    onValueChange = { title = it },
+                    label = { Text("Nombre del Hito") },
+                    modifier = Modifier.fillMaxWidth(),
+                    isError = submitted && !validTitle,
+                    supportingText = { if (submitted && !validTitle) Text("Ingresa al menos 3 caracteres") }
+                )
+                OutlinedTextField(
+                    value = date,
+                    onValueChange = { date = it },
+                    label = { Text("Fecha límite (ej. 20 dic 2026)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    isError = submitted && !validDate,
+                    supportingText = { if (submitted && !validDate) Text("Indica la fecha de entrega") }
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    submitted = true
+                    if (validTitle && validDate) {
+                        onConfirm(title.trim(), date.trim())
+                    }
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = InstitutionalColors.Green)
+            ) {
+                Text("Guardar")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancelar") }
+        }
+    )
 }
 
-private fun showDeadlineNotification(context: android.content.Context) {
-    if (android.os.Build.VERSION.SDK_INT >= 33 && ActivityCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-        Toast.makeText(context, "Concede permiso de notificaciones para recibir recordatorios", Toast.LENGTH_SHORT).show(); return
+private fun showDeadlineNotification(context: Context) {
+    if (Build.VERSION.SDK_INT >= 33 &&
+        ActivityCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+    ) {
+        Toast.makeText(context, "Concede permiso de notificaciones para recibir recordatorios", Toast.LENGTH_SHORT).show()
+        return
     }
-    val notification = NotificationCompat.Builder(context, "deadlines").setSmallIcon(android.R.drawable.ic_dialog_info).setContentTitle("Tutor Virtual ESUCAR").setContentText("Recuerda revisar tu próximo hito académico.").setPriority(NotificationCompat.PRIORITY_DEFAULT).build()
+
+    val notification = NotificationCompat.Builder(context, "deadlines")
+        .setSmallIcon(android.R.drawable.ic_dialog_info)
+        .setContentTitle("Tutor Virtual ESUCAR")
+        .setContentText("Recuerda revisar tus hitos académicos para tu Trabajo de Título.")
+        .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+        .setAutoCancel(true)
+        .build()
+
     NotificationManagerCompat.from(context).notify(1001, notification)
 }
