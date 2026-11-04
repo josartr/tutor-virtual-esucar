@@ -657,31 +657,58 @@ private fun InstitutionalBrand() {
 
 @Composable
 private fun BottomBar(nav: NavHostController, currentDestination: androidx.navigation.NavDestination?) {
-    NavigationBar(
-        containerColor = InstitutionalColors.GreenDark,
-        contentColor = InstitutionalColors.White,
-        tonalElevation = 0.dp
+    Surface(
+        color = InstitutionalColors.GreenDark,
+        tonalElevation = 4.dp,
+        modifier = Modifier.fillMaxWidth().height(56.dp)
     ) {
-        listOf(
-            "dashboard" to Icons.Default.Home to "Inicio",
-            "guide" to Icons.Default.MenuBook to "Guía",
-            "study" to Icons.Default.Timer to "Estudio",
-            "faq" to Icons.Default.Search to "FAQ",
-            "deliverables" to Icons.Default.TaskAlt to "Hitos"
-        ).forEach { (entry, label) ->
-            NavigationBarItem(
-                selected = currentDestination?.route == entry.first,
-                onClick = { nav.navigate(entry.first) { launchSingleTop = true } },
-                icon = { Icon(entry.second, label) },
-                label = { Text(label) },
-                colors = NavigationBarItemDefaults.colors(
-                    selectedIconColor = InstitutionalColors.Lime,
-                    selectedTextColor = InstitutionalColors.White,
-                    indicatorColor = InstitutionalColors.Green,
-                    unselectedIconColor = InstitutionalColors.White.copy(alpha = 0.72f),
-                    unselectedTextColor = InstitutionalColors.White.copy(alpha = 0.72f)
-                )
-            )
+        Row(
+            modifier = Modifier.fillMaxSize(),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            listOf(
+                "dashboard" to Icons.Default.Home to "Inicio",
+                "guide" to Icons.Default.MenuBook to "Guía",
+                "study" to Icons.Default.Timer to "Estudio",
+                "faq" to Icons.Default.Search to "FAQ",
+                "deliverables" to Icons.Default.TaskAlt to "Hitos"
+            ).forEach { (entry, label) ->
+                val selected = currentDestination?.route == entry.first
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .clickable { nav.navigate(entry.first) { launchSingleTop = true } }
+                        .padding(vertical = 3.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .background(
+                                if (selected) InstitutionalColors.Green else Color.Transparent,
+                                RoundedCornerShape(12.dp)
+                            )
+                            .padding(horizontal = 10.dp, vertical = 2.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = entry.second,
+                            contentDescription = label,
+                            tint = if (selected) InstitutionalColors.Lime else InstitutionalColors.White.copy(alpha = 0.72f),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    Text(
+                        text = label,
+                        fontSize = 10.sp,
+                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                        color = if (selected) InstitutionalColors.White else InstitutionalColors.White.copy(alpha = 0.72f),
+                        maxLines = 1
+                    )
+                }
+            }
         }
     }
 }
