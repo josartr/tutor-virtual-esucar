@@ -5,6 +5,7 @@ import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteException
 import android.database.sqlite.SQLiteOpenHelper
+import android.util.Log
 import android.util.Base64
 import org.json.JSONArray
 import java.security.MessageDigest
@@ -13,7 +14,7 @@ import javax.crypto.SecretKeyFactory
 import javax.crypto.spec.PBEKeySpec
 
 private const val DATABASE_NAME = "tutor_virtual.db"
-private const val DATABASE_VERSION = 2
+private const val DATABASE_VERSION = 3
 
 sealed interface AuthResult {
     data class Success(val profile: UserProfile) : AuthResult
@@ -124,24 +125,9 @@ private class TutorDatabaseHelper(context: Context) :
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
         if (oldVersion < 2) {
-            db.execSQL(
-                """
-                CREATE TABLE IF NOT EXISTS users (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    email TEXT NOT NULL UNIQUE COLLATE NOCASE,
-                    full_name TEXT NOT NULL,
-                    research_topic TEXT NOT NULL,
-                    tutor_name TEXT NOT NULL,
-                    rank TEXT NOT NULL,
-                    institution_type TEXT NOT NULL DEFAULT 'ESUCAR',
-                    password_hash TEXT NOT NULL DEFAULT '',
-                    password_salt TEXT NOT NULL DEFAULT '',
-                    sso_provider TEXT NOT NULL DEFAULT 'Correo Institucional'
-                )
-                """.trimIndent()
-            )
-            createAuthTables(db)
+            createUsersTable(db)
         }
+        if (oldVersion < 3) migrateUsersTable(db)
     }
 
     private fun createAuthTables(db: SQLiteDatabase) {
@@ -154,6 +140,49 @@ private class TutorDatabaseHelper(context: Context) :
             """.trimIndent()
         )
     }
+
+    private fun createUsersTable(db: SQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                email TEXT NOT NULL UNIQUE COLLATE NOCASE,
+                full_name TEXT NOT NULL,
+                research_topic TEXT NOT NULL,
+                tutor_name TEXT NOT NULL,
+                rank TEXT NOT NULL DEFAULT 'Alumno ESUCAR',
+                institution_type TEXT NOT NULL DEFAULT 'ESUCAR',
+                password_hash TEXT NOT NULL DEFAULT '',
+                password_salt TEXT NOT NULL DEFAULT '',
+                sso_provider TEXT NOT NULL DEFAULT 'Correo Institucional'
+            )
+            """.trimIndent()
+        )
+        createAuthTables(db)
+    }
+
+    private fun migrateUsersTable(db: SQLiteDatabase) {
+        createUsersTable(db)
+        addColumnIfMissing(db, "users", "institution_type", "TEXT NOT NULL DEFAULT 'ESUCAR'")
+        addColumnIfMissing(db, "users", "password_hash", "TEXT NOT NULL DEFAULT ''")
+        addColumnIfMissing(db, "users", "password_salt", "TEXT NOT NULL DEFAULT ''")
+        addColumnIfMissing(db, "users", "sso_provider", "TEXT NOT NULL DEFAULT 'Correo Institucional'")
+    }
+
+    private fun addColumnIfMissing(
+        db: SQLiteDatabase,
+        table: String,
+        column: String,
+        definition: String
+    ) {
+        val exists = db.rawQuery("PRAGMA table_info($table)", null).use { cursor ->
+            generateSequence {
+                if (cursor.moveToNext()) cursor.getString(cursor.getColumnIndexOrThrow("name"))
+                else null
+            }.any { it.equals(column, ignoreCase = true) }
+        }
+        if (!exists) db.execSQL("ALTER TABLE $table ADD COLUMN $column $definition")
+    }
 }
 
 class LocalRepository(context: Context) {
@@ -162,25 +191,32 @@ class LocalRepository(context: Context) {
     private val legacyPrefs = appContext.getSharedPreferences("tutor_virtual", Context.MODE_PRIVATE)
 
     init {
-        migrateLegacyPreferencesIfNeeded()
+        runCatching {
+            database.writableDatabase
+            migrateLegacyPreferencesIfNeeded()
+        }.onFailure { error ->
+            Log.e("LocalRepository", "No se pudo inicializar la base de datos local", error)
+        }
     }
 
     fun loadUserProfile(): UserProfile {
-        database.readableDatabase.rawQuery(
-            """
-            SELECT u.rank, u.full_name, u.email, u.research_topic, u.tutor_name,
-                   u.sso_provider, u.institution_type
-            FROM users u
-            INNER JOIN current_session s ON s.user_id = u.id
-            WHERE s.id = 1
-            """.trimIndent(),
-            null
-        ).use { cursor ->
-            if (cursor.moveToFirst()) {
-                return cursor.toUserProfile()
+        return try {
+            database.readableDatabase.rawQuery(
+                """
+                SELECT u.rank, u.full_name, u.email, u.research_topic, u.tutor_name,
+                       u.sso_provider, u.institution_type
+                FROM users u
+                INNER JOIN current_session s ON s.user_id = u.id
+                WHERE s.id = 1
+                """.trimIndent(),
+                null
+            ).use { cursor ->
+                if (cursor.moveToFirst()) cursor.toUserProfile() else UserProfile()
             }
+        } catch (error: SQLiteException) {
+            Log.e("LocalRepository", "No se pudo cargar la sesión local", error)
+            UserProfile()
         }
-        return UserProfile()
     }
 
     fun saveUserProfile(profile: UserProfile) {

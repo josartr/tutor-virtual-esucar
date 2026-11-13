@@ -61,7 +61,8 @@ class TutorViewModel(application: Application) : AndroidViewModel(application) {
             institutionType = institutionType,
             isLoggedIn = true
         )
-        return when (val result = repository.registerUser(profile, password)) {
+        return when (val result = runCatching { repository.registerUser(profile, password) }
+            .getOrElse { AuthResult.PersistenceError }) {
             is AuthResult.Success -> {
                 _userProfile.value = result.profile
                 result
@@ -71,7 +72,8 @@ class TutorViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun login(email: String, password: String): AuthResult {
-        return when (val result = repository.login(email, password)) {
+        return when (val result = runCatching { repository.login(email, password) }
+            .getOrElse { AuthResult.PersistenceError }) {
             is AuthResult.Success -> {
                 _userProfile.value = result.profile
                 result
