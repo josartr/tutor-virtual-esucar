@@ -14,7 +14,7 @@ import javax.crypto.SecretKeyFactory
 import javax.crypto.spec.PBEKeySpec
 
 private const val DATABASE_NAME = "tutor_virtual.db"
-private const val DATABASE_VERSION = 3
+private const val DATABASE_VERSION = 4
 
 sealed interface AuthResult {
     data class Success(val profile: UserProfile) : AuthResult
@@ -124,12 +124,9 @@ private class TutorDatabaseHelper(context: Context) :
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        ensureSchema(db)
-    }
-
-    override fun onOpen(db: SQLiteDatabase) {
-        super.onOpen(db)
-        ensureSchema(db)
+        if (oldVersion < 4) {
+            rebuildAuthenticationSchema(db)
+        }
     }
 
     private fun createAuthTables(db: SQLiteDatabase) {
@@ -163,14 +160,6 @@ private class TutorDatabaseHelper(context: Context) :
         createAuthTables(db)
     }
 
-    private fun migrateUsersTable(db: SQLiteDatabase) {
-        createUsersTable(db)
-        addColumnIfMissing(db, "users", "institution_type", "TEXT NOT NULL DEFAULT 'ESUCAR'")
-        addColumnIfMissing(db, "users", "password_hash", "TEXT NOT NULL DEFAULT ''")
-        addColumnIfMissing(db, "users", "password_salt", "TEXT NOT NULL DEFAULT ''")
-        addColumnIfMissing(db, "users", "sso_provider", "TEXT NOT NULL DEFAULT 'Correo Institucional'")
-    }
-
     private fun ensureSchema(db: SQLiteDatabase) {
         db.execSQL(
             """
@@ -190,7 +179,6 @@ private class TutorDatabaseHelper(context: Context) :
             """.trimIndent()
         )
         createUsersTable(db)
-        migrateUsersTable(db)
         db.execSQL(
             """
             CREATE TABLE IF NOT EXISTS deliverables (
@@ -221,19 +209,28 @@ private class TutorDatabaseHelper(context: Context) :
         )
     }
 
-    private fun addColumnIfMissing(
-        db: SQLiteDatabase,
-        table: String,
-        column: String,
-        definition: String
-    ) {
-        val exists = db.rawQuery("PRAGMA table_info($table)", null).use { cursor ->
-            generateSequence {
-                if (cursor.moveToNext()) cursor.getString(cursor.getColumnIndexOrThrow("name"))
-                else null
-            }.any { it.equals(column, ignoreCase = true) }
-        }
-        if (!exists) db.execSQL("ALTER TABLE $table ADD COLUMN $column $definition")
+    private fun rebuildAuthenticationSchema(db: SQLiteDatabase) {
+        db.execSQL("DROP TABLE IF EXISTS current_session")
+        db.execSQL("DROP TABLE IF EXISTS users")
+        db.execSQL("DROP TABLE IF EXISTS user_profile")
+        db.execSQL(
+            """
+            CREATE TABLE user_profile (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                rank TEXT NOT NULL DEFAULT 'Alumno ESUCAR',
+                full_name TEXT NOT NULL DEFAULT '',
+                email TEXT NOT NULL DEFAULT '',
+                research_topic TEXT NOT NULL DEFAULT '',
+                tutor_name TEXT NOT NULL DEFAULT '',
+                sso_provider TEXT NOT NULL DEFAULT 'Correo Institucional',
+                institution_type TEXT NOT NULL DEFAULT 'ESUCAR',
+                password_hash TEXT NOT NULL DEFAULT '',
+                password_salt TEXT NOT NULL DEFAULT '',
+                is_logged_in INTEGER NOT NULL DEFAULT 0
+            )
+            """.trimIndent()
+        )
+        createUsersTable(db)
     }
 }
 
