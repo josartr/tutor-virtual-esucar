@@ -7,6 +7,11 @@ enum class DeliverableStatus(val label: String) {
     TODO("Por iniciar"), IN_PROGRESS("En desarrollo"), SUBMITTED("Enviado"), APPROVED("Aprobado")
 }
 
+enum class InstitutionType(val label: String) {
+    ESUCAR("Estudiante ESUCAR"),
+    CARABINEROS("Carabineros de Chile")
+}
+
 data class UserProfile(
     val rank: String = "Alumno ESUCAR",
     val fullName: String = "",
@@ -14,6 +19,7 @@ data class UserProfile(
     val researchTopic: String = "",
     val tutorName: String = "",
     val ssoProvider: String = "Correo Institucional",
+    val institutionType: InstitutionType = InstitutionType.ESUCAR,
     val isLoggedIn: Boolean = false
 )
 
@@ -22,6 +28,14 @@ fun isValidInstitutionalEmail(email: String): Boolean {
     val parts = clean.split("@")
     if (parts.size != 2 || parts[0].isBlank()) return false
     return parts[1] == "carabineros.cl" || parts[1] == "esucar.cl"
+}
+
+fun isEmailForInstitution(email: String, institutionType: InstitutionType): Boolean {
+    val domain = email.trim().lowercase().substringAfterLast("@", "")
+    return when (institutionType) {
+        InstitutionType.ESUCAR -> domain == "esucar.cl"
+        InstitutionType.CARABINEROS -> domain == "carabineros.cl"
+    }
 }
 
 val defaultRanks = listOf(

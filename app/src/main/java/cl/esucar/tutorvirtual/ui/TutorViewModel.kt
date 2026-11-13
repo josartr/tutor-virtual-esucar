@@ -42,6 +42,45 @@ class TutorViewModel(application: Application) : AndroidViewModel(application) {
 
     private var pomodoroJob: Job? = null
 
+    fun registerUser(
+        rank: String,
+        fullName: String,
+        email: String,
+        researchTopic: String,
+        tutorName: String,
+        institutionType: InstitutionType,
+        password: String
+    ): AuthResult {
+        val profile = UserProfile(
+            rank = if (institutionType == InstitutionType.CARABINEROS) rank else "Alumno ESUCAR",
+            fullName = fullName.trim(),
+            email = email.trim(),
+            researchTopic = researchTopic.trim(),
+            tutorName = tutorName.trim(),
+            ssoProvider = "Registro institucional",
+            institutionType = institutionType,
+            isLoggedIn = true
+        )
+        return when (val result = repository.registerUser(profile, password)) {
+            is AuthResult.Success -> {
+                _userProfile.value = result.profile
+                result
+            }
+            else -> result
+        }
+    }
+
+    fun login(email: String, password: String): AuthResult {
+        return when (val result = repository.login(email, password)) {
+            is AuthResult.Success -> {
+                _userProfile.value = result.profile
+                result
+            }
+            else -> result
+        }
+    }
+
+    @Deprecated("Kept for compatibility with the legacy demo screen.")
     fun loginUser(
         rank: String,
         fullName: String,
@@ -50,17 +89,20 @@ class TutorViewModel(application: Application) : AndroidViewModel(application) {
         tutorName: String,
         ssoProvider: String = "Correo Institucional"
     ) {
-        val profile = UserProfile(
-            rank = rank.ifBlank { "Alumno ESUCAR" },
-            fullName = fullName.trim(),
-            email = email.trim(),
-            researchTopic = researchTopic.trim(),
-            tutorName = tutorName.trim(),
-            ssoProvider = ssoProvider,
-            isLoggedIn = true
+        val institutionType = if (email.trim().lowercase().endsWith("@carabineros.cl")) {
+            InstitutionType.CARABINEROS
+        } else {
+            InstitutionType.ESUCAR
+        }
+        registerUser(
+            rank = rank,
+            fullName = fullName,
+            email = email,
+            researchTopic = researchTopic,
+            tutorName = tutorName,
+            institutionType = institutionType,
+            password = "LegacyDemo123!"
         )
-        _userProfile.value = profile
-        repository.saveUserProfile(profile)
     }
 
     fun loginQuickSSO(provider: String = "Carabineros SSO") {

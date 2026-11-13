@@ -90,7 +90,7 @@ fun TutorApp(vm: TutorViewModel) {
 
     MaterialTheme(colorScheme = InstitutionalLightColors) {
         if (!userProfile.isLoggedIn) {
-            LoginScreen(vm)
+            CleanLoginScreen(vm)
         } else {
             val nav = rememberNavController()
             val currentDestination = nav.currentBackStackEntryAsState().value?.destination
@@ -140,6 +140,296 @@ fun TutorApp(vm: TutorViewModel) {
 
             if (showProfileDialog) {
                 ProfileDialog(userProfile, onDismiss = { showProfileDialog = false }, vm = vm)
+            }
+        }
+    }
+}
+
+@Composable
+private fun CleanLoginScreen(vm: TutorViewModel) {
+    var registrationMode by remember { mutableStateOf(false) }
+    var institutionType by remember { mutableStateOf(InstitutionType.ESUCAR) }
+    var institutionExpanded by remember { mutableStateOf(false) }
+    var rank by remember { mutableStateOf(defaultRanks[1]) }
+    var rankExpanded by remember { mutableStateOf(false) }
+    var tutor by remember { mutableStateOf(defaultEsucarTutors.first()) }
+    var tutorExpanded by remember { mutableStateOf(false) }
+    var email by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var confirmPassword by remember { mutableStateOf("") }
+    var fullName by remember { mutableStateOf("") }
+    var topic by remember { mutableStateOf("") }
+    var submitted by remember { mutableStateOf(false) }
+    var message by remember { mutableStateOf<String?>(null) }
+    var messageIsError by remember { mutableStateOf(false) }
+
+    val validEmail = isValidInstitutionalEmail(email) &&
+        (!registrationMode || isEmailForInstitution(email, institutionType))
+    val validPassword = password.length >= 8
+    val passwordsMatch = password == confirmPassword
+    val validName = fullName.trim().length >= 3
+    val validTopic = topic.trim().length >= 4
+    val validRank = institutionType == InstitutionType.ESUCAR || rank.isNotBlank()
+
+    fun submit() {
+        submitted = true
+        message = null
+        messageIsError = false
+        if (!validEmail || !validPassword) return
+
+        if (!registrationMode) {
+            when (vm.login(email, password)) {
+                is AuthResult.Success -> Unit
+                AuthResult.InvalidCredentials -> {
+                    message = "Correo o contraseña incorrectos."
+                    messageIsError = true
+                }
+                AuthResult.EmailAlreadyRegistered -> Unit
+                AuthResult.InvalidRegistration -> Unit
+            }
+            return
+        }
+
+        if (!validName || !validTopic || !validRank || !passwordsMatch) return
+        when (
+            vm.registerUser(
+                rank = if (institutionType == InstitutionType.CARABINEROS) rank else "Alumno ESUCAR",
+                fullName = fullName,
+                email = email,
+                researchTopic = topic,
+                tutorName = tutor,
+                institutionType = institutionType,
+                password = password
+            )
+        ) {
+            is AuthResult.Success -> Unit
+            AuthResult.EmailAlreadyRegistered -> {
+                message = "Este correo ya está registrado. Inicia sesión para continuar."
+                messageIsError = true
+            }
+            AuthResult.InvalidCredentials -> Unit
+            AuthResult.InvalidRegistration -> {
+                message = "Revisa los datos del registro."
+                messageIsError = true
+            }
+        }
+    }
+
+    Surface(Modifier.fillMaxSize(), color = InstitutionalColors.Background) {
+        LazyColumn(
+            contentPadding = PaddingValues(24.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            item {
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    "Tutor Virtual ESUCAR",
+                    fontSize = 26.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = InstitutionalColors.GreenDark
+                )
+                Text(
+                    if (registrationMode) "Crea tu cuenta institucional" else "Ingresa con tu cuenta",
+                    color = InstitutionalColors.Graphite
+                )
+            }
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Button(
+                        onClick = {
+                            registrationMode = false
+                            submitted = false
+                            message = null
+                        },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (!registrationMode) InstitutionalColors.Green else InstitutionalColors.Navy
+                        )
+                    ) { Text("Iniciar sesión") }
+                    OutlinedButton(
+                        onClick = {
+                            registrationMode = true
+                            submitted = false
+                            message = null
+                        },
+                        modifier = Modifier.weight(1f)
+                    ) { Text("Registrarme") }
+                }
+            }
+            item {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = InstitutionalColors.White),
+                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        Modifier.padding(18.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = email,
+                            onValueChange = { email = it },
+                            label = { Text("Correo institucional") },
+                            placeholder = { Text("usuario@esucar.cl") },
+                            modifier = Modifier.fillMaxWidth(),
+                            isError = submitted && !validEmail,
+                            leadingIcon = { Icon(Icons.Default.Email, null) },
+                            supportingText = {
+                                if (submitted && !validEmail) {
+                                    Text("Usa un correo @esucar.cl o @carabineros.cl")
+                                }
+                            }
+                        )
+                        OutlinedTextField(
+                            value = password,
+                            onValueChange = { password = it },
+                            label = { Text("Contraseña") },
+                            modifier = Modifier.fillMaxWidth(),
+                            isError = submitted && !validPassword,
+                            visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                            leadingIcon = { Icon(Icons.Default.Lock, null) },
+                            supportingText = {
+                                if (submitted && !validPassword) Text("Debe tener al menos 8 caracteres")
+                            }
+                        )
+                        if (registrationMode) {
+                            OutlinedTextField(
+                                value = confirmPassword,
+                                onValueChange = { confirmPassword = it },
+                                label = { Text("Repetir contraseña") },
+                                modifier = Modifier.fillMaxWidth(),
+                                isError = submitted && !passwordsMatch,
+                                visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                                leadingIcon = { Icon(Icons.Default.Lock, null) },
+                                supportingText = {
+                                    if (submitted && !passwordsMatch) Text("Las contraseñas no coinciden")
+                                }
+                            )
+                        }
+
+                        if (registrationMode) {
+                            ExposedDropdownMenuBox(
+                                expanded = institutionExpanded,
+                                onExpandedChange = { institutionExpanded = !institutionExpanded }
+                            ) {
+                                OutlinedTextField(
+                                    value = institutionType.label,
+                                    onValueChange = {},
+                                    readOnly = true,
+                                    label = { Text("Tipo de usuario") },
+                                    modifier = Modifier.menuAnchor().fillMaxWidth(),
+                                    leadingIcon = { Icon(Icons.Default.Badge, null) }
+                                )
+                                ExposedDropdownMenu(
+                                    expanded = institutionExpanded,
+                                    onDismissRequest = { institutionExpanded = false }
+                                ) {
+                                    InstitutionType.entries.forEach { type ->
+                                        DropdownMenuItem(
+                                            text = { Text(type.label) },
+                                            onClick = {
+                                                institutionType = type
+                                                institutionExpanded = false
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+
+                            if (institutionType == InstitutionType.CARABINEROS) {
+                                ExposedDropdownMenuBox(
+                                    expanded = rankExpanded,
+                                    onExpandedChange = { rankExpanded = !rankExpanded }
+                                ) {
+                                    OutlinedTextField(
+                                        value = rank,
+                                        onValueChange = {},
+                                        readOnly = true,
+                                        label = { Text("Grado policial") },
+                                        modifier = Modifier.menuAnchor().fillMaxWidth(),
+                                        isError = submitted && !validRank
+                                    )
+                                    ExposedDropdownMenu(
+                                        expanded = rankExpanded,
+                                        onDismissRequest = { rankExpanded = false }
+                                    ) {
+                                        defaultRanks.drop(1).forEach { option ->
+                                            DropdownMenuItem(
+                                                text = { Text(option) },
+                                                onClick = {
+                                                    rank = option
+                                                    rankExpanded = false
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            OutlinedTextField(
+                                value = fullName,
+                                onValueChange = { fullName = it },
+                                label = { Text("Nombre completo") },
+                                modifier = Modifier.fillMaxWidth(),
+                                isError = submitted && !validName,
+                                leadingIcon = { Icon(Icons.Default.Person, null) }
+                            )
+                            OutlinedTextField(
+                                value = topic,
+                                onValueChange = { topic = it },
+                                label = { Text("Tema del proyecto de título") },
+                                modifier = Modifier.fillMaxWidth(),
+                                isError = submitted && !validTopic,
+                                leadingIcon = { Icon(Icons.Default.Book, null) }
+                            )
+                            ExposedDropdownMenuBox(
+                                expanded = tutorExpanded,
+                                onExpandedChange = { tutorExpanded = !tutorExpanded }
+                            ) {
+                                OutlinedTextField(
+                                    value = tutor,
+                                    onValueChange = {},
+                                    readOnly = true,
+                                    label = { Text("Profesor tutor") },
+                                    modifier = Modifier.menuAnchor().fillMaxWidth()
+                                )
+                                ExposedDropdownMenu(
+                                    expanded = tutorExpanded,
+                                    onDismissRequest = { tutorExpanded = false }
+                                ) {
+                                    defaultEsucarTutors.forEach { option ->
+                                        DropdownMenuItem(
+                                            text = { Text(option, fontSize = 12.sp) },
+                                            onClick = {
+                                                tutor = option
+                                                tutorExpanded = false
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        if (message != null) {
+                            Text(
+                                message.orEmpty(),
+                                color = if (messageIsError) MaterialTheme.colorScheme.error else InstitutionalColors.GreenDark,
+                                fontSize = 13.sp
+                            )
+                        }
+                        Button(
+                            onClick = ::submit,
+                            modifier = Modifier.fillMaxWidth().height(48.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = InstitutionalColors.Green)
+                        ) {
+                            Text(if (registrationMode) "Crear cuenta" else "Ingresar")
+                        }
+                    }
+                }
             }
         }
     }
@@ -585,17 +875,19 @@ private fun ProfileDialog(profile: UserProfile, onDismiss: () -> Unit, vm: Tutor
                     }
                 }
 
-                ExposedDropdownMenuBox(expanded = rankExpanded, onExpandedChange = { rankExpanded = !rankExpanded }) {
-                    OutlinedTextField(
-                        value = rank,
-                        onValueChange = {},
-                        readOnly = true,
-                        label = { Text("Grado / Escalafón") },
-                        modifier = Modifier.menuAnchor().fillMaxWidth()
-                    )
-                    ExposedDropdownMenu(expanded = rankExpanded, onDismissRequest = { rankExpanded = false }) {
-                        defaultRanks.forEach { r ->
-                            DropdownMenuItem(text = { Text(r) }, onClick = { rank = r; rankExpanded = false })
+                if (profile.institutionType == InstitutionType.CARABINEROS) {
+                    ExposedDropdownMenuBox(expanded = rankExpanded, onExpandedChange = { rankExpanded = !rankExpanded }) {
+                        OutlinedTextField(
+                            value = rank,
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("Grado / Escalafón") },
+                            modifier = Modifier.menuAnchor().fillMaxWidth()
+                        )
+                        ExposedDropdownMenu(expanded = rankExpanded, onDismissRequest = { rankExpanded = false }) {
+                            defaultRanks.drop(1).forEach { r ->
+                                DropdownMenuItem(text = { Text(r) }, onClick = { rank = r; rankExpanded = false })
+                            }
                         }
                     }
                 }
