@@ -61,7 +61,7 @@ private class TutorDatabaseHelper(context: Context) :
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL(
             """
-            CREATE TABLE user_profile (
+            CREATE TABLE IF NOT EXISTS user_profile (
                 id INTEGER PRIMARY KEY CHECK (id = 1),
                 rank TEXT NOT NULL,
                 full_name TEXT NOT NULL,
@@ -95,7 +95,7 @@ private class TutorDatabaseHelper(context: Context) :
         createAuthTables(db)
         db.execSQL(
             """
-            CREATE TABLE deliverables (
+            CREATE TABLE IF NOT EXISTS deliverables (
                 id TEXT PRIMARY KEY NOT NULL,
                 title TEXT NOT NULL,
                 due_date TEXT NOT NULL,
@@ -106,7 +106,7 @@ private class TutorDatabaseHelper(context: Context) :
         )
         db.execSQL(
             """
-            CREATE TABLE checklist_items (
+            CREATE TABLE IF NOT EXISTS checklist_items (
                 stage_id TEXT NOT NULL,
                 item_index INTEGER NOT NULL,
                 PRIMARY KEY (stage_id, item_index)
@@ -115,7 +115,7 @@ private class TutorDatabaseHelper(context: Context) :
         )
         db.execSQL(
             """
-            CREATE TABLE stage_notes (
+            CREATE TABLE IF NOT EXISTS stage_notes (
                 stage_id TEXT PRIMARY KEY NOT NULL,
                 note TEXT NOT NULL
             )
@@ -124,10 +124,12 @@ private class TutorDatabaseHelper(context: Context) :
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        if (oldVersion < 2) {
-            createUsersTable(db)
-        }
-        if (oldVersion < 3) migrateUsersTable(db)
+        ensureSchema(db)
+    }
+
+    override fun onOpen(db: SQLiteDatabase) {
+        super.onOpen(db)
+        ensureSchema(db)
     }
 
     private fun createAuthTables(db: SQLiteDatabase) {
@@ -169,6 +171,56 @@ private class TutorDatabaseHelper(context: Context) :
         addColumnIfMissing(db, "users", "sso_provider", "TEXT NOT NULL DEFAULT 'Correo Institucional'")
     }
 
+    private fun ensureSchema(db: SQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS user_profile (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                rank TEXT NOT NULL DEFAULT 'Alumno ESUCAR',
+                full_name TEXT NOT NULL DEFAULT '',
+                email TEXT NOT NULL DEFAULT '',
+                research_topic TEXT NOT NULL DEFAULT '',
+                tutor_name TEXT NOT NULL DEFAULT '',
+                sso_provider TEXT NOT NULL DEFAULT 'Correo Institucional',
+                institution_type TEXT NOT NULL DEFAULT 'ESUCAR',
+                password_hash TEXT NOT NULL DEFAULT '',
+                password_salt TEXT NOT NULL DEFAULT '',
+                is_logged_in INTEGER NOT NULL DEFAULT 0
+            )
+            """.trimIndent()
+        )
+        createUsersTable(db)
+        migrateUsersTable(db)
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS deliverables (
+                id TEXT PRIMARY KEY NOT NULL,
+                title TEXT NOT NULL,
+                due_date TEXT NOT NULL,
+                status TEXT NOT NULL,
+                stage_id TEXT NOT NULL
+            )
+            """.trimIndent()
+        )
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS checklist_items (
+                stage_id TEXT NOT NULL,
+                item_index INTEGER NOT NULL,
+                PRIMARY KEY (stage_id, item_index)
+            )
+            """.trimIndent()
+        )
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS stage_notes (
+                stage_id TEXT PRIMARY KEY NOT NULL,
+                note TEXT NOT NULL
+            )
+            """.trimIndent()
+        )
+    }
+
     private fun addColumnIfMissing(
         db: SQLiteDatabase,
         table: String,
@@ -196,6 +248,12 @@ class LocalRepository(context: Context) {
             migrateLegacyPreferencesIfNeeded()
         }.onFailure { error ->
             Log.e("LocalRepository", "No se pudo inicializar la base de datos local", error)
+            database.close()
+            appContext.deleteDatabase(DATABASE_NAME)
+            runCatching { database.writableDatabase }
+                .onFailure { retryError ->
+                    Log.e("LocalRepository", "No se pudo recuperar la base de datos local", retryError)
+                }
         }
     }
 

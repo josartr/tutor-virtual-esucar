@@ -152,7 +152,6 @@ fun TutorApp(vm: TutorViewModel) {
 private fun CleanLoginScreen(vm: TutorViewModel) {
     var registrationMode by remember { mutableStateOf(false) }
     var institutionType by remember { mutableStateOf(InstitutionType.ESUCAR) }
-    var institutionExpanded by remember { mutableStateOf(false) }
     var rank by remember { mutableStateOf(defaultRanks[1]) }
     var rankExpanded by remember { mutableStateOf(false) }
     var tutor by remember { mutableStateOf(defaultEsucarTutors.first()) }
@@ -234,41 +233,81 @@ private fun CleanLoginScreen(vm: TutorViewModel) {
         ) {
             item {
                 Spacer(Modifier.height(12.dp))
+                Surface(
+                    color = InstitutionalColors.Green,
+                    shape = CircleShape,
+                    modifier = Modifier.size(72.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            Icons.Default.VerifiedUser,
+                            contentDescription = null,
+                            tint = InstitutionalColors.Lime,
+                            modifier = Modifier.size(38.dp)
+                        )
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
                 Text(
-                    "Tutor Virtual ESUCAR",
+                    "Acceso Institucional",
                     fontSize = 26.sp,
                     fontWeight = FontWeight.Bold,
                     color = InstitutionalColors.GreenDark
                 )
                 Text(
-                    if (registrationMode) "Crea tu cuenta institucional" else "Ingresa con tu cuenta",
+                    "Tutor Virtual ESUCAR · SSO seguro",
                     color = InstitutionalColors.Graphite
                 )
             }
             item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = InstitutionalColors.White),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, InstitutionalColors.Border),
+                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Button(
-                        onClick = {
-                            registrationMode = false
-                            submitted = false
-                            message = null
-                        },
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (!registrationMode) InstitutionalColors.Green else InstitutionalColors.Navy
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text("Selecciona tu acceso", fontWeight = FontWeight.Bold, color = InstitutionalColors.GreenDark)
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            listOf(
+                                InstitutionType.ESUCAR to Icons.Default.School,
+                                InstitutionType.CARABINEROS to Icons.Default.Security
+                            ).forEach { (type, icon) ->
+                                val selected = institutionType == type
+                                Card(
+                                    modifier = Modifier.weight(1f).clickable {
+                                        institutionType = type
+                                        submitted = false
+                                        message = null
+                                    },
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = if (selected) InstitutionalColors.GreenSoft else InstitutionalColors.Background
+                                    ),
+                                    border = androidx.compose.foundation.BorderStroke(
+                                        1.dp,
+                                        if (selected) InstitutionalColors.Green else InstitutionalColors.Border
+                                    )
+                                ) {
+                                    Column(
+                                        Modifier.padding(12.dp).fillMaxWidth(),
+                                        horizontalAlignment = Alignment.CenterHorizontally
+                                    ) {
+                                        Icon(icon, null, tint = InstitutionalColors.Green)
+                                        Text(
+                                            if (type == InstitutionType.ESUCAR) "ESUCAR" else "Carabineros",
+                                            fontSize = 12.sp,
+                                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                        Text(
+                            "Usa tu identidad institucional para acceder a tu espacio académico.",
+                            color = InstitutionalColors.Graphite,
+                            fontSize = 12.sp
                         )
-                    ) { Text("Iniciar sesión") }
-                    OutlinedButton(
-                        onClick = {
-                            registrationMode = true
-                            submitted = false
-                            message = null
-                        },
-                        modifier = Modifier.weight(1f)
-                    ) { Text("Registrarme") }
+                    }
                 }
             }
             item {
@@ -284,14 +323,28 @@ private fun CleanLoginScreen(vm: TutorViewModel) {
                         OutlinedTextField(
                             value = email,
                             onValueChange = { email = it },
-                            label = { Text("Correo institucional") },
-                            placeholder = { Text("usuario@esucar.cl") },
+                            label = { Text("Identidad institucional") },
+                            placeholder = {
+                                Text(
+                                    if (institutionType == InstitutionType.ESUCAR) {
+                                        "usuario@esucar.cl"
+                                    } else {
+                                        "usuario@carabineros.cl"
+                                    }
+                                )
+                            },
                             modifier = Modifier.fillMaxWidth(),
                             isError = submitted && !validEmail,
                             leadingIcon = { Icon(Icons.Default.Email, null) },
                             supportingText = {
                                 if (submitted && !validEmail) {
-                                    Text("Usa un correo @esucar.cl o @carabineros.cl")
+                                    Text(
+                                        if (institutionType == InstitutionType.ESUCAR) {
+                                            "Usa un correo @esucar.cl"
+                                        } else {
+                                            "Usa un correo @carabineros.cl"
+                                        }
+                                    )
                                 }
                             }
                         )
@@ -323,34 +376,6 @@ private fun CleanLoginScreen(vm: TutorViewModel) {
                         }
 
                         if (registrationMode) {
-                            ExposedDropdownMenuBox(
-                                expanded = institutionExpanded,
-                                onExpandedChange = { institutionExpanded = !institutionExpanded }
-                            ) {
-                                OutlinedTextField(
-                                    value = institutionType.label,
-                                    onValueChange = {},
-                                    readOnly = true,
-                                    label = { Text("Tipo de usuario") },
-                                    modifier = Modifier.menuAnchor().fillMaxWidth(),
-                                    leadingIcon = { Icon(Icons.Default.Badge, null) }
-                                )
-                                ExposedDropdownMenu(
-                                    expanded = institutionExpanded,
-                                    onDismissRequest = { institutionExpanded = false }
-                                ) {
-                                    InstitutionType.entries.forEach { type ->
-                                        DropdownMenuItem(
-                                            text = { Text(type.label) },
-                                            onClick = {
-                                                institutionType = type
-                                                institutionExpanded = false
-                                            }
-                                        )
-                                    }
-                                }
-                            }
-
                             if (institutionType == InstitutionType.CARABINEROS) {
                                 ExposedDropdownMenuBox(
                                     expanded = rankExpanded,
@@ -437,9 +462,23 @@ private fun CleanLoginScreen(vm: TutorViewModel) {
                             modifier = Modifier.fillMaxWidth().height(48.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = InstitutionalColors.Green)
                         ) {
-                            Text(if (registrationMode) "Crear cuenta" else "Ingresar")
+                            Text(if (registrationMode) "Crear cuenta institucional" else "Continuar con SSO")
                         }
                     }
+                }
+            }
+            item {
+                TextButton(
+                    onClick = {
+                        registrationMode = !registrationMode
+                        submitted = false
+                        message = null
+                    }
+                ) {
+                    Text(
+                        if (registrationMode) "Ya tengo una cuenta · Iniciar sesión"
+                        else "¿Primera vez? Crear cuenta institucional"
+                    )
                 }
             }
         }
