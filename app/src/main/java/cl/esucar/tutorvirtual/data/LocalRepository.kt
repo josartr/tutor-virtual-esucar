@@ -266,7 +266,7 @@ class LocalRepository(context: Context) {
                 """.trimIndent(),
                 null
             ).use { cursor ->
-                if (cursor.moveToFirst()) cursor.toUserProfile() else UserProfile()
+                if (cursor.moveToFirst()) cursor.toUserProfile(isLoggedIn = true) else UserProfile()
             }
         } catch (error: SQLiteException) {
             Log.e("LocalRepository", "No se pudo cargar la sesión local", error)
@@ -669,7 +669,7 @@ class LocalRepository(context: Context) {
     companion object {
         private val USER_COLUMNS = arrayOf(
             "id", "rank", "full_name", "email", "research_topic", "tutor_name",
-            "sso_provider", "institution_type"
+            "sso_provider", "institution_type", "password_hash", "password_salt"
         )
         private val DELIVERABLE_COLUMNS = arrayOf("id", "title", "due_date", "status", "stage_id")
     }

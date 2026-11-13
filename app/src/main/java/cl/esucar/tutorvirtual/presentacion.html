@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Presentación ESUCAR - Tutor Virtual</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #F4F4F4;
+            color: #333;
+        }
+        .slide {
+            width: 80%;
+            margin: 20px auto;
+            background: white;
+            padding: 40px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            border-radius: 10px;
+            border-top: 8px solid #247A55; /* Verde Institucional */
+        }
+        h1, h2, h3 {
+            color: #17654F;
+        }
+        .code-block {
+            background-color: #2b2b2b;
+            color: #f8f8f2;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: 'Courier New', Courier, monospace;
+            overflow-x: auto;
+            font-size: 14px;
+        }
+        .script-section {
+            background-color: #E6F1ED;
+            padding: 15px;
+            border-left: 5px solid #8BAF3A;
+            margin-top: 15px;
+            font-style: italic;
+        }
+        .speaker-martin { color: #1F4768; font-weight: bold; font-style: normal; }
+        .speaker-jose { color: #247A55; font-weight: bold; font-style: normal; }
+    </style>
+</head>
+<body>
+
+    <h1 style="text-align: center; margin-top: 20px;">Tutor Virtual ESUCAR - Presentación de Proyecto</h1>
+    <h3 style="text-align: center;">Expositores: Martín y José</h3>
+
+    <!-- Diapositiva 1 -->
+    <div class="slide">
+        <h2>1. Introducción al Proyecto: Tutor Virtual ESUCAR</h2>
+        <p><strong>Objetivo:</strong> Facilitar y estructurar el proceso académico de los estudiantes de la Escuela de Suboficiales de Carabineros, digitalizando su progreso en los Trabajos de Título.</p>
+        <ul>
+            <li>Desarrollada nativamente en Android con Jetpack Compose.</li>
+            <li>Identidad gráfica y validación integrada.</li>
+            <li>Base de datos local y offline first con SQLite.</li>
+        </ul>
+        <div class="script-section">
+            <p><span class="speaker-martin">Martín:</span> "Buenos días a todos. Hoy, junto a mi compañero José, presentaremos el proyecto final: 'Tutor Virtual ESUCAR'. El objetivo es entregarle a los estudiantes una herramienta en sus celulares para gestionar el desarrollo de sus trabajos de investigación de una forma profesional y estructurada."</p>
+            <p><span class="speaker-jose">José:</span> "Exactamente, Martín. Nos enfocamos en mantener una estética totalmente corporativa y seria, implementando herramientas prácticas como generadores de citas APA y un temporizador Pomodoro para el estudio focalizado."</p>
+        </div>
+    </div>
+
+    <!-- Diapositiva 2 -->
+    <div class="slide">
+        <h2>2. Autenticación y Validación Institucional</h2>
+        <p>El primer desafío fue asegurar que el registro simule un entorno oficial. Reemplazamos iconos genéricos por la marca de la institución y fortalecimos el Single Sign-On (SSO).</p>
+        <div class="code-block">
+<pre><code>// Modificación en MainActivity.kt - Login Screen
+Image(
+    painter = painterResource(R.drawable.institutional_header_logo),
+    contentDescription = "Emblema Carabineros ESUCAR",
+    modifier = Modifier.size(72.dp),
+    contentScale = ContentScale.Fit
+)
+
+// Validación de dominio
+fun isEmailForInstitution(email: String): Boolean {
+    val domain = email.trim().lowercase().substringAfterLast("@", "")
+    return domain == "esucar.cl" || domain == "carabineros.cl"
+}</code></pre>
+        </div>
+        <div class="script-section">
+            <p><span class="speaker-martin">Martín:</span> "En pantalla ven cómo estructuramos el inicio de sesión. Era clave que el usuario se sintiera dentro de una plataforma oficial. Por eso, integramos el emblema de la escuela."</p>
+            <p><span class="speaker-jose">José:</span> "Además, a nivel lógico, aplicamos una función que valida que los correos registrados terminen obligatoriamente en dominios institucionales como '@esucar.cl' o '@carabineros.cl', dándole robustez al sistema."</p>
+        </div>
+    </div>
+
+    <!-- Diapositiva 3 -->
+    <div class="slide">
+        <h2>3. Persistencia de Datos (Base de Datos Local)</h2>
+        <p>Para almacenar la información del estudiante sin depender siempre de internet, diseñamos un esquema relacional con SQLite y Repository Pattern.</p>
+        <div class="code-block">
+<pre><code>// Modificación en LocalRepository.kt - Arreglando el inicio de sesión
+private val USER_COLUMNS = arrayOf(
+    "id", "rank", "full_name", "email", "research_topic", "tutor_name",
+    "sso_provider", "institution_type", "password_hash", "password_salt"
+)
+
+// Iniciar sesión y persistir estado
+).use { cursor ->
+    if (cursor.moveToFirst()) cursor.toUserProfile(isLoggedIn = true)
+    else UserProfile()
+}</code></pre>
+        </div>
+        <div class="script-section">
+            <p><span class="speaker-martin">Martín:</span> "En el desarrollo, nos topamos con un problema crítico: los usuarios se registraban pero al intentar entrar, la app daba error. Nos dimos cuenta de que nuestra consulta a la base de datos olvidaba pedir las credenciales encriptadas."</p>
+            <p><span class="speaker-jose">José:</span> "Como ven en el código, agregamos 'password_hash' y 'password_salt' al cursor, lo que arregló la validación. Adicionalmente, forzamos que al cargar los datos desde la base de datos, el sistema recuerde que el usuario ya está conectado (isLoggedIn = true)."</p>
+        </div>
+    </div>
+
+    <!-- Diapositiva 4 -->
+    <div class="slide">
+        <h2>4. Nuevas Herramientas: Cultura y Radio</h2>
+        <p>Añadimos accesos al Museo Histórico y a la Radio de Carabineros para fomentar la identidad doctrinal del alumno.</p>
+        <div class="code-block">
+<pre><code>// Agregado en StudyToolsScreen
+Button(
+    onClick = {
+        val intent = Intent(Intent.ACTION_VIEW,
+            Uri.parse("https://www.museocarabineros.cl/web/sitio"))
+        if (intent.resolveActivity(context.packageManager) != null) {
+            context.startActivity(intent)
+        }
+    }
+) {
+    Text("Visitar Sitio Web")
+}
+// También se incluyeron las frecuencias: FM 98.1 y AM 820.
+</code></pre>
+        </div>
+        <div class="script-section">
+            <p><span class="speaker-martin">Martín:</span> "Para finalizar el desarrollo de herramientas, decidimos ir más allá del apoyo metodológico e incluir vínculos directos con la doctrina institucional."</p>
+            <p><span class="speaker-jose">José:</span> "Por ello, programamos Intents directos al sitio del Museo Histórico y añadimos los diales oficiales de la Radio Institucional. Así, la aplicación centraliza tanto la parte académica como la cultural del Suboficial en formación."</p>
+            <p><span class="speaker-martin">Martín:</span> "Y con esto concluimos nuestra demostración del código y el producto final. Agradecemos su atención."</p>
+        </div>
+    </div>
+
+</body>
+</html>
