@@ -19,8 +19,9 @@ data class UserProfile(
 
 fun isValidInstitutionalEmail(email: String): Boolean {
     val clean = email.trim().lowercase()
-    if (!clean.contains("@") || !clean.contains(".")) return false
-    return clean.endsWith("@carabineros.cl") || clean.endsWith("@esucar.cl") || clean.endsWith(".cl") || clean.contains("@")
+    val parts = clean.split("@")
+    if (parts.size != 2 || parts[0].isBlank()) return false
+    return parts[1] == "carabineros.cl" || parts[1] == "esucar.cl"
 }
 
 val defaultRanks = listOf(
@@ -44,9 +45,8 @@ val defaultEsucarTutors = listOf(
 )
 
 val ssoProviders = listOf(
-    "SSO ESUCAR (@esucar.cl)",
-    "SSO Carabineros de Chile (@carabineros.cl)",
-    "ClaveÚnica Institucional"
+    "SSO simulado ESUCAR (@esucar.cl)",
+    "SSO simulado Carabineros de Chile (@carabineros.cl)"
 )
 
 data class Stage(

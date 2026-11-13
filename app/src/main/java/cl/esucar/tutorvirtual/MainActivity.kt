@@ -280,12 +280,15 @@ private fun LoginScreen(vm: TutorViewModel) {
                             onValueChange = { email = it },
                             label = { Text("Correo Institucional (ej. usuario@esucar.cl)") },
                             modifier = Modifier.fillMaxWidth(),
+                            isError = submitted && !isInstEmail,
                             leadingIcon = { Icon(Icons.Default.Email, null) },
                             trailingIcon = {
                                 if (isInstEmail) Icon(Icons.Default.CheckCircle, "Dominio Verificado", tint = InstitutionalColors.Green)
                             },
                             supportingText = {
-                                if (email.isNotBlank()) {
+                                if (submitted && !isInstEmail) {
+                                    Text("Usa un correo @esucar.cl o @carabineros.cl")
+                                } else if (email.isNotBlank()) {
                                     if (isInstEmail) Text("Correo de dominio institucional verificado", color = InstitutionalColors.GreenDark, fontSize = 11.sp)
                                     else Text("Sugerencia: Usa tu correo @esucar.cl o @carabineros.cl", fontSize = 11.sp)
                                 }
@@ -376,7 +379,7 @@ private fun LoginScreen(vm: TutorViewModel) {
                         Button(
                             onClick = {
                                 submitted = true
-                                if (validName && validTopic) {
+                                if (validName && validTopic && isInstEmail) {
                                     vm.loginUser(
                                         rank = selectedRank,
                                         fullName = fullName,
@@ -408,7 +411,7 @@ private fun LoginScreen(vm: TutorViewModel) {
                 showSsoModal = false
             },
             onQuickDemo = {
-                vm.loginQuickSSO("SSO ESUCAR (@esucar.cl)")
+                vm.loginQuickSSO("SSO simulado ESUCAR (@esucar.cl)")
                 showSsoModal = false
             }
         )
@@ -433,6 +436,8 @@ private fun SsoCustomModal(
     var ssoEmail by remember { mutableStateOf("marcos.soto@esucar.cl") }
     var ssoName by remember { mutableStateOf("Marcos Soto R.") }
     var ssoTopic by remember { mutableStateOf("Estrategias de Seguridad Preventiva Cuadrante") }
+    var submitted by remember { mutableStateOf(false) }
+    val validSsoEmail = isValidInstitutionalEmail(ssoEmail)
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -471,7 +476,13 @@ private fun SsoCustomModal(
                     value = ssoEmail,
                     onValueChange = { ssoEmail = it },
                     label = { Text("Correo Institucional / RUN") },
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    isError = submitted && !validSsoEmail,
+                    supportingText = {
+                        if (submitted && !validSsoEmail) {
+                            Text("Usa un correo @esucar.cl o @carabineros.cl")
+                        }
+                    }
                 )
 
                 ExposedDropdownMenuBox(expanded = rankExpanded, onExpandedChange = { rankExpanded = !rankExpanded }) {
@@ -531,7 +542,10 @@ private fun SsoCustomModal(
         confirmButton = {
             Button(
                 onClick = {
-                    onConfirmSso(selectedProvider, selectedRank, ssoName, ssoEmail, ssoTopic, selectedTutor)
+                    submitted = true
+                    if (validSsoEmail && ssoName.trim().length >= 3 && ssoTopic.trim().length >= 4) {
+                        onConfirmSso(selectedProvider, selectedRank, ssoName, ssoEmail, ssoTopic, selectedTutor)
+                    }
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = InstitutionalColors.Green)
             ) {

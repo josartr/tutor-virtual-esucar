@@ -27,6 +27,8 @@ class StudyToolsTest {
         assertTrue(isValidInstitutionalEmail("alumno.perez@esucar.cl"))
         assertTrue(isValidInstitutionalEmail("contacto@carabineros.cl"))
         assertFalse(isValidInstitutionalEmail("sin_arroba_ni_punto"))
+        assertFalse(isValidInstitutionalEmail("usuario@otra-institucion.cl"))
+        assertFalse(isValidInstitutionalEmail("usuario@esucar.cl.ejemplo.com"))
     }
 
     @Test
