@@ -3,6 +3,7 @@ package cl.esucar.tutorvirtual.data
 import android.content.ContentValues
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
+import android.database.sqlite.SQLiteException
 import android.database.sqlite.SQLiteOpenHelper
 import android.util.Base64
 import org.json.JSONArray
@@ -19,6 +20,7 @@ sealed interface AuthResult {
     data object EmailAlreadyRegistered : AuthResult
     data object InvalidCredentials : AuthResult
     data object InvalidRegistration : AuthResult
+    data object PersistenceError : AuthResult
 }
 
 private object PasswordHasher {
@@ -164,13 +166,14 @@ class LocalRepository(context: Context) {
     }
 
     fun loadUserProfile(): UserProfile {
-        database.readableDatabase.query(
-            "users u INNER JOIN current_session s ON s.user_id = u.id",
-            PROFILE_COLUMNS,
-            "s.id = ?",
-            arrayOf("1"),
-            null,
-            null,
+        database.readableDatabase.rawQuery(
+            """
+            SELECT u.rank, u.full_name, u.email, u.research_topic, u.tutor_name,
+                   u.sso_provider, u.institution_type
+            FROM users u
+            INNER JOIN current_session s ON s.user_id = u.id
+            WHERE s.id = 1
+            """.trimIndent(),
             null
         ).use { cursor ->
             if (cursor.moveToFirst()) {
@@ -227,55 +230,63 @@ class LocalRepository(context: Context) {
         }
         val db = database.writableDatabase
         return try {
-            val userId = db.insertOrThrow("users", null, values)
-            setCurrentSession(userId)
-            AuthResult.Success(profile.copy(email = email, isLoggedIn = true))
-        } catch (_: android.database.sqlite.SQLiteConstraintException) {
-            val legacyUserId = db.query(
+            try {
+                val userId = db.insertOrThrow("users", null, values)
+                setCurrentSession(userId)
+                AuthResult.Success(profile.copy(email = email, isLoggedIn = true))
+            } catch (_: android.database.sqlite.SQLiteConstraintException) {
+                val legacyUserId = db.query(
+                    "users",
+                    arrayOf("id", "password_hash"),
+                    "email = ?",
+                    arrayOf(email),
+                    null,
+                    null,
+                    null
+                ).use { cursor ->
+                    if (cursor.moveToFirst() && cursor.getString(1).isBlank()) cursor.getLong(0) else null
+                }
+                if (legacyUserId == null) {
+                    AuthResult.EmailAlreadyRegistered
+                } else {
+                    db.update("users", values, "id = ?", arrayOf(legacyUserId.toString()))
+                    setCurrentSession(legacyUserId)
+                    AuthResult.Success(profile.copy(email = email, isLoggedIn = true))
+                }
+            }
+        } catch (_: SQLiteException) {
+            AuthResult.PersistenceError
+        }
+    }
+
+    fun login(emailInput: String, password: String): AuthResult {
+        val email = emailInput.trim().lowercase()
+        return try {
+            database.readableDatabase.query(
                 "users",
-                arrayOf("id", "password_hash"),
+                USER_COLUMNS,
                 "email = ?",
                 arrayOf(email),
                 null,
                 null,
                 null
             ).use { cursor ->
-                if (cursor.moveToFirst() && cursor.getString(1).isBlank()) cursor.getLong(0) else null
+                if (!cursor.moveToFirst()) return AuthResult.InvalidCredentials
+                val salt = cursor.getString(cursor.getColumnIndexOrThrow("password_salt"))
+                val expectedHash = cursor.getString(cursor.getColumnIndexOrThrow("password_hash"))
+                if (salt.isBlank() || !MessageDigest.isEqual(
+                        expectedHash.toByteArray(),
+                        PasswordHasher.hash(password, salt).toByteArray()
+                    )
+                ) {
+                    return AuthResult.InvalidCredentials
+                }
+                val userId = cursor.getLong(cursor.getColumnIndexOrThrow("id"))
+                setCurrentSession(userId)
+                AuthResult.Success(cursor.toUserProfile(isLoggedIn = true))
             }
-            if (legacyUserId == null) {
-                AuthResult.EmailAlreadyRegistered
-            } else {
-                db.update("users", values, "id = ?", arrayOf(legacyUserId.toString()))
-                setCurrentSession(legacyUserId)
-                AuthResult.Success(profile.copy(email = email, isLoggedIn = true))
-            }
-        }
-    }
-
-    fun login(emailInput: String, password: String): AuthResult {
-        val email = emailInput.trim().lowercase()
-        database.readableDatabase.query(
-            "users",
-            USER_COLUMNS,
-            "email = ?",
-            arrayOf(email),
-            null,
-            null,
-            null
-        ).use { cursor ->
-            if (!cursor.moveToFirst()) return AuthResult.InvalidCredentials
-            val salt = cursor.getString(cursor.getColumnIndexOrThrow("password_salt"))
-            val expectedHash = cursor.getString(cursor.getColumnIndexOrThrow("password_hash"))
-            if (salt.isBlank() || !MessageDigest.isEqual(
-                    expectedHash.toByteArray(),
-                    PasswordHasher.hash(password, salt).toByteArray()
-                )
-            ) {
-                return AuthResult.InvalidCredentials
-            }
-            val userId = cursor.getLong(cursor.getColumnIndexOrThrow("id"))
-            setCurrentSession(userId)
-            return AuthResult.Success(cursor.toUserProfile(isLoggedIn = true))
+        } catch (_: SQLiteException) {
+            AuthResult.PersistenceError
         }
     }
 
@@ -565,11 +576,6 @@ class LocalRepository(context: Context) {
     )
 
     companion object {
-        private val PROFILE_COLUMNS = arrayOf(
-            "u.rank AS rank", "u.full_name AS full_name", "u.email AS email",
-            "u.research_topic AS research_topic", "u.tutor_name AS tutor_name",
-            "u.sso_provider AS sso_provider", "u.institution_type AS institution_type"
-        )
         private val USER_COLUMNS = arrayOf(
             "id", "rank", "full_name", "email", "research_topic", "tutor_name",
             "sso_provider", "institution_type"

@@ -7,6 +7,8 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.os.Build
@@ -135,6 +137,7 @@ fun TutorApp(vm: TutorViewModel) {
                     composable("study") { StudyToolsScreen(vm) }
                     composable("faq") { FaqScreen(vm) }
                     composable("deliverables") { Deliverables(vm) }
+                    composable("news") { NewsScreen() }
                 }
             }
 
@@ -186,6 +189,10 @@ private fun CleanLoginScreen(vm: TutorViewModel) {
                 }
                 AuthResult.EmailAlreadyRegistered -> Unit
                 AuthResult.InvalidRegistration -> Unit
+                AuthResult.PersistenceError -> {
+                    message = "No fue posible acceder a la base de datos. Intenta nuevamente."
+                    messageIsError = true
+                }
             }
             return
         }
@@ -210,6 +217,10 @@ private fun CleanLoginScreen(vm: TutorViewModel) {
             AuthResult.InvalidCredentials -> Unit
             AuthResult.InvalidRegistration -> {
                 message = "Revisa los datos del registro."
+                messageIsError = true
+            }
+            AuthResult.PersistenceError -> {
+                message = "No fue posible guardar la cuenta. Intenta nuevamente."
                 messageIsError = true
             }
         }
@@ -1110,8 +1121,92 @@ private fun Dashboard(vm: TutorViewModel, nav: NavHostController, onOpenProfile:
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 QuickAction("Guía", Icons.Default.MenuBook) { nav.navigate("guide") }
                 QuickAction("Estudio", Icons.Default.Timer) { nav.navigate("study") }
-                QuickAction("Preguntas", Icons.Default.QuestionMark) { nav.navigate("faq") }
+                QuickAction("Noticias", Icons.Default.Newspaper) { nav.navigate("news") }
                 QuickAction("Hitos", Icons.Default.TaskAlt) { nav.navigate("deliverables") }
+            }
+        }
+    }
+}
+
+@Composable
+private fun NewsScreen() {
+    val context = LocalContext.current
+    val officialUrl = "https://www.revistacarabineros.cl/"
+
+    LazyColumn(
+        contentPadding = PaddingValues(20.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        item {
+            Text("Noticias institucionales", fontSize = 28.sp, fontWeight = FontWeight.Bold)
+            Text(
+                "Accede a las publicaciones oficiales de la Revista Carabineros.",
+                color = InstitutionalColors.Graphite
+            )
+        }
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = InstitutionalColors.Navy),
+                shape = RoundedCornerShape(20.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Icon(
+                        Icons.Default.Newspaper,
+                        contentDescription = null,
+                        tint = InstitutionalColors.Lime,
+                        modifier = Modifier.size(36.dp)
+                    )
+                    Text(
+                        "Revista Carabineros",
+                        color = InstitutionalColors.White,
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        "Consulta noticias, reportajes y contenidos institucionales directamente desde el portal oficial.",
+                        color = InstitutionalColors.White.copy(alpha = 0.88f),
+                        fontSize = 14.sp
+                    )
+                    Button(
+                        onClick = {
+                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(officialUrl))
+                            if (intent.resolveActivity(context.packageManager) != null) {
+                                context.startActivity(intent)
+                            } else {
+                                Toast.makeText(
+                                    context,
+                                    "No hay un navegador disponible para abrir la revista.",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = InstitutionalColors.Lime)
+                    ) {
+                        Icon(Icons.Default.OpenInNew, null, tint = Color.Black)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Abrir Revista Carabineros", color = Color.Black)
+                    }
+                }
+            }
+        }
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = InstitutionalColors.White),
+                border = androidx.compose.foundation.BorderStroke(1.dp, InstitutionalColors.Border)
+            ) {
+                Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Verified, null, tint = InstitutionalColors.Green)
+                    Spacer(Modifier.width(12.dp))
+                    Column {
+                        Text("Fuente oficial", fontWeight = FontWeight.Bold)
+                        Text(
+                            "Los contenidos se consultan en el sitio institucional para conservar la información actualizada.",
+                            color = InstitutionalColors.Graphite,
+                            fontSize = 13.sp
+                        )
+                    }
+                }
             }
         }
     }
