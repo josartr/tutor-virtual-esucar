@@ -1,5 +1,6 @@
 package cl.esucar.tutorvirtual.data
 
+import java.text.Normalizer
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -7,20 +8,118 @@ enum class DeliverableStatus(val label: String) {
     TODO("Por iniciar"), IN_PROGRESS("En desarrollo"), SUBMITTED("Enviado"), APPROVED("Aprobado")
 }
 
+enum class InstitutionType(val label: String) {
+    ESUCAR("ESUCAR"),
+    CARABINEROS("Carabineros de Chile")
+}
+
+enum class UserRole(val label: String) {
+    ESTUDIANTE("Estudiante"),
+    FUNCIONARIO("Funcionario")
+}
+
 data class UserProfile(
     val rank: String = "Alumno ESUCAR",
-    val fullName: String = "",
+    val firstName: String = "",
+    val firstLastName: String = "",
+    val secondLastName: String = "",
+    val fullName: String = buildFullName(firstName, firstLastName, secondLastName),
     val email: String = "",
     val researchTopic: String = "",
     val tutorName: String = "",
     val ssoProvider: String = "Correo Institucional",
+    val institutionType: InstitutionType = InstitutionType.ESUCAR,
+    val userRole: UserRole = UserRole.ESTUDIANTE,
     val isLoggedIn: Boolean = false
 )
 
-fun isValidInstitutionalEmail(email: String): Boolean {
+data class ProjectTopic(
+    val id: String,
+    val title: String,
+    val createdAt: String
+)
+
+fun buildFullName(firstName: String, firstLastName: String, secondLastName: String): String =
+    listOf(firstName.trim(), firstLastName.trim(), secondLastName.trim())
+        .filter { it.isNotBlank() }
+        .joinToString(" ")
+
+fun institutionForEmail(email: String): InstitutionType? {
     val clean = email.trim().lowercase()
-    if (!clean.contains("@") || !clean.contains(".")) return false
-    return clean.endsWith("@carabineros.cl") || clean.endsWith("@esucar.cl") || clean.endsWith(".cl") || clean.contains("@")
+    val parts = clean.split("@")
+    if (parts.size != 2 || parts[0].isBlank()) return null
+    return when (parts[1]) {
+        "esucar.cl" -> InstitutionType.ESUCAR
+        "carabineros.cl" -> InstitutionType.CARABINEROS
+        else -> null
+    }
+}
+
+fun isValidInstitutionalEmail(email: String): Boolean = institutionForEmail(email) != null
+
+fun isEmailForInstitution(email: String, institutionType: InstitutionType): Boolean =
+    institutionForEmail(email) == institutionType
+
+fun resolveProfileRank(
+    institutionType: InstitutionType,
+    userRole: UserRole,
+    selectedRank: String
+): String = when (institutionType) {
+    InstitutionType.CARABINEROS -> {
+        val clean = selectedRank.trim()
+        if (clean.isBlank() || clean == "Alumno ESUCAR" || clean == "Funcionario ESUCAR") {
+            defaultRanks[1]
+        } else {
+            clean
+        }
+    }
+    InstitutionType.ESUCAR -> {
+        if (userRole == UserRole.FUNCIONARIO) "Funcionario ESUCAR" else "Alumno ESUCAR"
+    }
+}
+
+fun sanitizeEmailToken(input: String): String {
+    val normalized = Normalizer.normalize(input.trim().lowercase(Locale.ROOT), Normalizer.Form.NFD)
+    return normalized
+        .replace(Regex("\\p{InCombiningDiacriticalMarks}+"), "")
+        .replace(Regex("[^a-z0-9]"), "")
+}
+
+fun generateInstitutionalEmail(
+    firstName: String,
+    firstLastName: String,
+    secondLastName: String,
+    userRole: UserRole
+): String {
+    val firstToken = firstName.trim()
+        .split(Regex("\\s+"))
+        .firstOrNull()
+        ?.let(::sanitizeEmailToken)
+        .orEmpty()
+    val last1Token = firstLastName.trim()
+        .split(Regex("\\s+"))
+        .joinToString("", transform = ::sanitizeEmailToken)
+    val last2Initial = secondLastName.trim()
+        .split(Regex("\\s+"))
+        .firstOrNull()
+        ?.let(::sanitizeEmailToken)
+        ?.firstOrNull()
+        ?.toString()
+        .orEmpty()
+
+    val localParts = buildList {
+        if (firstToken.isNotBlank()) add(firstToken)
+        if (last1Token.isNotBlank()) add(last1Token)
+        if (firstToken.isNotBlank() && last1Token.isNotBlank() && last2Initial.isNotBlank()) {
+            add(last2Initial)
+        }
+    }
+    if (localParts.isEmpty()) return ""
+    val domain = when (userRole) {
+        UserRole.ESTUDIANTE -> "esucar.cl"
+        UserRole.FUNCIONARIO -> "carabineros.cl"
+    }
+    return "${localParts.joinToString(".")}@$domain"
 }
 
 val defaultRanks = listOf(
@@ -44,9 +143,8 @@ val defaultEsucarTutors = listOf(
 )
 
 val ssoProviders = listOf(
-    "SSO ESUCAR (@esucar.cl)",
-    "SSO Carabineros de Chile (@carabineros.cl)",
-    "ClaveÚnica Institucional"
+    "SSO simulado ESUCAR (@esucar.cl)",
+    "SSO simulado Carabineros de Chile (@carabineros.cl)"
 )
 
 data class Stage(

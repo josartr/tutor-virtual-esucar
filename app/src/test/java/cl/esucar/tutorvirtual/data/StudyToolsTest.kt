@@ -27,6 +27,54 @@ class StudyToolsTest {
         assertTrue(isValidInstitutionalEmail("alumno.perez@esucar.cl"))
         assertTrue(isValidInstitutionalEmail("contacto@carabineros.cl"))
         assertFalse(isValidInstitutionalEmail("sin_arroba_ni_punto"))
+        assertFalse(isValidInstitutionalEmail("usuario@otra-institucion.cl"))
+        assertFalse(isValidInstitutionalEmail("usuario@esucar.cl.ejemplo.com"))
+        assertEquals(InstitutionType.ESUCAR, institutionForEmail("alumno@esucar.cl"))
+        assertEquals(InstitutionType.CARABINEROS, institutionForEmail("FUNCIONARIO@CARABINEROS.CL"))
+        assertEquals(null, institutionForEmail("usuario@gmail.com"))
+        assertTrue(isEmailForInstitution("alumno@esucar.cl", InstitutionType.ESUCAR))
+        assertTrue(isEmailForInstitution("funcionario@carabineros.cl", InstitutionType.CARABINEROS))
+        assertFalse(isEmailForInstitution("alumno@esucar.cl", InstitutionType.CARABINEROS))
+    }
+
+    @Test
+    fun `resolveProfileRank respects domain and user role`() {
+        assertEquals(
+            "Alumno ESUCAR",
+            resolveProfileRank(InstitutionType.ESUCAR, UserRole.ESTUDIANTE, "Sargento 1°")
+        )
+        assertEquals(
+            "Funcionario ESUCAR",
+            resolveProfileRank(InstitutionType.ESUCAR, UserRole.FUNCIONARIO, "")
+        )
+        assertEquals(
+            "Sargento 2°",
+            resolveProfileRank(InstitutionType.CARABINEROS, UserRole.FUNCIONARIO, "Sargento 2°")
+        )
+        assertEquals(
+            defaultRanks[1],
+            resolveProfileRank(InstitutionType.CARABINEROS, UserRole.ESTUDIANTE, "Alumno ESUCAR")
+        )
+    }
+
+    @Test
+    fun `generateInstitutionalEmail normalizes names and assigns domain by role`() {
+        assertEquals(
+            "maria.oconnor.n@esucar.cl",
+            generateInstitutionalEmail("María José", "O'Connor", "Núñez", UserRole.ESTUDIANTE)
+        )
+        assertEquals(
+            "marcos.soto.r@carabineros.cl",
+            generateInstitutionalEmail("Marcos", "Soto", "Rojas", UserRole.FUNCIONARIO)
+        )
+        assertEquals(
+            "juan.delacruz@esucar.cl",
+            generateInstitutionalEmail("Juan", "De La Cruz", "", UserRole.ESTUDIANTE)
+        )
+        assertEquals(
+            "",
+            generateInstitutionalEmail("   ", "", "", UserRole.ESTUDIANTE)
+        )
     }
 
     @Test

@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Presentación Técnica · Tutor Virtual ESUCAR (José y Martín)</title>
+  <style>
+    :root {
+      --green: #1B5E3F;
+      --green-dark: #12402B;
+      --green-soft: #EAF2ED;
+      --lime: #7CA153;
+      --gold: #C8A951;
+      --navy: #284B63;
+      --navy-soft: #EBF1F5;
+      --bg: #F6F8F6;
+      --ink: #24302A;
+      --muted: #5B6861;
+      --border: #D7E0DA;
+      --code-bg: #1B221F;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', system-ui, -apple-system, Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      line-height: 1.5;
+    }
+
+    header.topbar {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      background: var(--green-dark);
+      color: #fff;
+      padding: 12px 24px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      border-bottom: 3px solid var(--gold);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .brand .dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: var(--gold);
+    }
+    .brand h1 {
+      margin: 0;
+      font-size: 16px;
+      letter-spacing: 0.3px;
+    }
+    .brand small {
+      display: block;
+      font-size: 12px;
+      color: #cfe3d8;
+    }
+
+    .controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .btn {
+      border: 1px solid rgba(255,255,255,0.28);
+      background: rgba(255,255,255,0.1);
+      color: #fff;
+      padding: 7px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s ease;
+    }
+    .btn:hover { background: rgba(255,255,255,0.2); }
+    .btn.primary { background: var(--gold); color: #122118; border-color: var(--gold); }
+    .btn.primary:hover { background: #d6b963; }
+
+    .deck {
+      max-width: 1180px;
+      margin: 24px auto 60px;
+      padding: 0 20px;
+    }
+
+    .slide {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-top: 7px solid var(--green);
+      border-radius: 16px;
+      padding: 32px 36px;
+      margin-bottom: 28px;
+      box-shadow: 0 10px 28px rgba(18, 64, 43, 0.08);
+    }
+    .slide.cover {
+      background: linear-gradient(135deg, var(--green-dark), var(--green));
+      color: #fff;
+      border-top-color: var(--gold);
+    }
+
+    body.present-mode .slide { display: none; }
+    body.present-mode .slide.active { display: block; animation: fadeSlide 0.22s ease; }
+
+    @keyframes fadeSlide {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .slide-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    .tag {
+      background: var(--green-soft);
+      color: var(--green-dark);
+      border: 1px solid rgba(27, 94, 63, 0.28);
+      padding: 4px 12px;
+      border-radius: 8px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.7px;
+      text-transform: uppercase;
+    }
+    .slide.cover .tag {
+      background: rgba(200, 169, 81, 0.2);
+      color: #f9e4a1;
+      border-color: var(--gold);
+    }
+    .counter {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--muted);
+    }
+    .slide.cover .counter { color: #d5e6dc; }
+
+    .slide h2 {
+      margin: 4px 0 18px;
+      font-size: 26px;
+      color: var(--green-dark);
+    }
+    .slide.cover h2 {
+      font-size: 36px;
+      color: #fff;
+      margin-bottom: 10px;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1.25fr;
+      gap: 22px;
+      align-items: stretch;
+    }
+    @media (max-width: 900px) {
+      .grid-2 { grid-template-columns: 1fr; }
+    }
+
+    .panel {
+      background: #fbfdfb;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 18px 20px;
+    }
+    .panel h3 {
+      margin: 0 0 10px;
+      font-size: 15px;
+      color: var(--green-dark);
+    }
+    .panel ul {
+      margin: 0;
+      padding-left: 18px;
+      font-size: 14px;
+    }
+    .panel li { margin-bottom: 8px; }
+
+    .code-card {
+      background: var(--code-bg);
+      border-radius: 12px;
+      border: 1px solid #304037;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    .code-header {
+      background: #131916;
+      color: var(--gold);
+      font-family: 'Cascadia Code', Consolas, 'Courier New', monospace;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 9px 14px;
+      border-bottom: 1px solid #2b3831;
+    }
+    .code-card pre {
+      margin: 0;
+      padding: 14px 16px;
+      color: #e7f2ec;
+      font-family: 'Cascadia Code', Consolas, 'Courier New', monospace;
+      font-size: 12.5px;
+      line-height: 1.48;
+      overflow-x: auto;
+    }
+    .kw { color: #8ad6a7; font-weight: 600; }
+    .fn { color: #f6d57a; }
+    .str { color: #a7d7f9; }
+    .cm { color: #859e90; font-style: italic; }
+
+    .script-box {
+      margin-top: 20px;
+      background: #fff;
+      border: 1px solid var(--border);
+      border-left: 6px solid var(--lime);
+      border-radius: 10px;
+      padding: 14px 18px;
+    }
+    .slide.cover .script-box {
+      color: var(--ink);
+    }
+    .script-title {
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.8px;
+      color: var(--green);
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+    .speech {
+      margin: 6px 0;
+      font-size: 14px;
+      font-style: italic;
+    }
+    .speaker-martin {
+      font-style: normal;
+      font-weight: 700;
+      color: var(--navy);
+      background: var(--navy-soft);
+      padding: 2px 8px;
+      border-radius: 6px;
+      margin-right: 6px;
+    }
+    .speaker-jose {
+      font-style: normal;
+      font-weight: 700;
+      color: var(--green-dark);
+      background: var(--green-soft);
+      padding: 2px 8px;
+      border-radius: 6px;
+      margin-right: 6px;
+    }
+
+    .pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 16px 0 8px;
+    }
+    .pill {
+      background: rgba(255,255,255,0.12);
+      border: 1px solid rgba(200,169,81,0.55);
+      color: #fff;
+      padding: 5px 12px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .cards-3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-top: 14px;
+    }
+    @media (max-width: 850px) { .cards-3 { grid-template-columns: 1fr; } }
+    .pillar {
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(124,161,83,0.65);
+      border-radius: 12px;
+      padding: 16px;
+    }
+    .pillar h4 { margin: 0 0 6px; color: var(--gold); font-size: 15px; }
+    .pillar p { margin: 0; font-size: 13.5px; color: #ebf4ef; }
+
+    @media print {
+      header.topbar { display: none; }
+      body.present-mode .slide { display: block !important; page-break-after: always; }
+      .deck { margin: 0; max-width: 100%; }
+    }
+  </style>
+</head>
+<body class="present-mode">
+
+  <header class="topbar">
+    <div class="brand">
+      <div class="dot"></div>
+      <div>
+        <h1>Tutor Virtual ESUCAR · Defensa Técnica</h1>
+        <small>Expositores: José Arturo T. &amp; Martín Hernández</small>
+      </div>
+    </div>
+    <div class="controls">
+      <button class="btn" id="prevBtn" onclick="moveSlide(-1)">← Anterior</button>
+      <span id="indicator" style="font-size:13px;font-weight:700;padding:0 6px;">1 / 8</span>
+      <button class="btn" id="nextBtn" onclick="moveSlide(1)">Siguiente →</button>
+      <button class="btn primary" id="modeBtn" onclick="toggleMode()">Ver Todo / Imprimir</button>
+    </div>
+  </header>
+
+  <main class="deck">
+
+    <!-- SLIDE 1 -->
+    <section class="slide cover active">
+      <div class="slide-meta">
+        <span class="tag">Escuela de Suboficiales · ESUCAR</span>
+        <span class="counter">Diapositiva 1 / 8</span>
+      </div>
+      <h2>Tutor Virtual ESUCAR</h2>
+      <p style="font-size:17px;color:#e6f1eb;max-width:860px;margin-top:0;">
+        Plataforma móvil nativa en <strong>Kotlin &amp; Jetpack Compose</strong> para acompañar la elaboración del Trabajo de Título con arquitectura <strong>Offline-First (SQLite)</strong>, identidad digital unificada y reproducción institucional en segundo plano con <strong>Media3</strong>.
+      </p>
+      <div class="pills">
+        <span class="pill">Kotlin 2.0.21</span>
+        <span class="pill">Jetpack Compose M3</span>
+        <span class="pill">SQLite + PBKDF2-SHA256</span>
+        <span class="pill">Media3 MediaSessionService</span>
+        <span class="pill">WorkManager</span>
+        <span class="pill">Target SDK 35</span>
+      </div>
+
+      <div class="script-box">
+        <div class="script-title">Guion de Exposición · Apertura</div>
+        <p class="speech"><span class="speaker-martin">Martín</span>"Buenos días comisión y compañeros. Junto a José presentamos <strong>Tutor Virtual ESUCAR</strong>, una aplicación Android nativa diseñada para que estudiantes y funcionarios gestionen su Trabajo de Título desde el teléfono, incluso sin conexión a internet."</p>
+        <p class="speech"><span class="speaker-jose">José</span>"Durante la presentación revisaremos los bloques críticos del código fuente: seguridad criptográfica local en SQLite, login unificado con generación automática de correo, inmutabilidad de temas y streaming de radio en segundo plano con Media3."</p>
+      </div>
+    </section>
+
+    <!-- SLIDE 2 -->
+    <section class="slide">
+      <div class="slide-meta">
+        <span class="tag">01 · Arquitectura &amp; UX Anti-Fatiga</span>
+        <span class="counter">Diapositiva 2 / 8</span>
+      </div>
+      <h2>Arquitectura MVVM, Paleta Suave y Edge-to-Edge Real</h2>
+      <div class="grid-2">
+        <div class="panel">
+          <h3>Decisiones Críticas de Interfaz</h3>
+          <ul>
+            <li><strong>MVVM desacoplado:</strong> La capa Compose observa <code>StateFlow</code> desde <code>TutorViewModel</code> sin acceder directamente a SQLite.</li>
+            <li><strong>Ergonomía visual:</strong> Tonos mate suaves (<code>#1B5E3F</code> y <code>#F6F8F6</code>) para estudiar sin fatiga ocular.</li>
+            <li><strong>Insets reales (API 35):</strong> <code>enableEdgeToEdge()</code> + <code>navigationBarsPadding()</code> evitan que los íconos de navegación del sistema tapen el footer.</li>
+            <li><strong>Feedback bloqueante:</strong> <code>GlobalLoadingOverlay</code> impide dobles envíos durante autenticación o conexión a la radio.</li>
+          </ul>
+        </div>
+        <div class="code-card">
+          <div class="code-header">InstitutionalTheme.kt &amp; MainActivity.kt (BottomBar)</div>
+<pre><code><span class="kw">object</span> InstitutionalColors {
+    <span class="kw">val</span> Green      = Color(<span class="str">0xFF1B5E3F</span>) <span class="cm">// Verde institucional suave</span>
+    <span class="kw">val</span> GreenDark  = Color(<span class="str">0xFF12402B</span>)
+    <span class="kw">val</span> GreenSoft  = Color(<span class="str">0xFFEAF2ED</span>)
+    <span class="kw">val</span> Background = Color(<span class="str">0xFFF6F8F6</span>) <span class="cm">// Superficie anti-fatiga</span>
+}
+
+<span class="cm">// En BottomBar(): respeta barra de gestos o botones Home/Volver</span>
+Row(
+    modifier = Modifier
+        .fillMaxWidth()
+        .<span class="fn">navigationBarsPadding</span>()
+        .height(64.dp)
+) { ... }</code></pre>
+        </div>
+      </div>
+      <div class="script-box">
+        <div class="script-title">Guion de Exposición</div>
+        <p class="speech"><span class="speaker-jose">José</span>"Estructuramos la aplicación bajo el patrón MVVM: toda la interfaz en Jetpack Compose reacciona a flujos StateFlow del ViewModel. Además, calibramos una paleta verde mate y fondo neutro para reducir la fatiga visual en lectura nocturna."</p>
+        <p class="speech"><span class="speaker-martin">Martín</span>"En pruebas reales sobre teléfono detectamos que la barra de sistema de Android tapaba el menú inferior. Activando <code>enableEdgeToEdge()</code> y aplicando <code>navigationBarsPadding()</code>, el footer ahora se adapta limpiamente a cualquier pantalla."</p>
+      </div>
+    </section>
+
+    <!-- SLIDE 3 -->
+    <section class="slide">
+      <div class="slide-meta">
+        <span class="tag">02 · Seguridad &amp; Persistencia Offline</span>
+        <span class="counter">Diapositiva 3 / 8</span>
+      </div>
+      <h2>SQLite Local con Derivación Criptográfica PBKDF2-SHA256</h2>
+      <div class="grid-2">
+        <div class="panel">
+          <h3>Controles Críticos en Base de Datos</h3>
+          <ul>
+            <li><strong>Cero texto plano:</strong> Las claves se derivan con <code>PBKDF2WithHmacSHA256</code> a <strong>120.000 iteraciones</strong>.</li>
+            <li><strong>Salt único por cuenta:</strong> 16 bytes aleatorios generados con <code>SecureRandom</code>.</li>
+            <li><strong>Comparación segura:</strong> <code>MessageDigest.isEqual()</code> previene ataques de temporización (<em>timing attacks</em>).</li>
+            <li><strong>Higiene de memoria y migraciones:</strong> Limpieza con <code>spec.clearPassword()</code> y esquema SQLite v6 con <code>onUpgrade</code> sin pérdida de sesiones.</li>
+          </ul>
+        </div>
+        <div class="code-card">
+          <div class="code-header">data/LocalRepository.kt · PasswordHasher</div>
+<pre><code><span class="kw">private object</span> PasswordHasher {
+    <span class="kw">private const val</span> ITERATIONS = 120_000
+    <span class="kw">private const val</span> KEY_LENGTH = 256
+
+    <span class="kw">fun</span> <span class="fn">hash</span>(password: String, salt: String): String {
+        <span class="kw">val</span> spec = PBEKeySpec(
+            password.toCharArray(),
+            Base64.decode(salt, Base64.DEFAULT),
+            ITERATIONS, KEY_LENGTH
+        )
+        <span class="kw">return try</span> {
+            Base64.encodeToString(
+                SecretKeyFactory.getInstance(<span class="str">"PBKDF2WithHmacSHA256"</span>)
+                    .generateSecret(spec).encoded, Base64.NO_WRAP
+            )
+        } <span class="kw">finally</span> { spec.<span class="fn">clearPassword</span>() }
+    }
+}</code></pre>
+        </div>
+      </div>
+      <div class="script-box">
+        <div class="script-title">Guion de Exposición</div>
+        <p class="speech"><span class="speaker-martin">Martín</span>"Al ser una herramienta offline-first para turnos sin cobertura, la autenticación completa funciona localmente en SQLite. Por eso protegimos las credenciales con estándares criptográficos reales."</p>
+        <p class="speech"><span class="speaker-jose">José</span>"En este bloque crítico generamos un salt aleatorio por usuario y aplicamos 120 mil iteraciones PBKDF2-SHA256. Al finalizar limpiamos el arreglo de caracteres en memoria con <code>clearPassword()</code> y validamos el hash en tiempo constante."</p>
+      </div>
+    </section>
+
+    <!-- SLIDE 4 -->
+    <section class="slide">
+      <div class="slide-meta">
+        <span class="tag">03 · Identidad Digital &amp; UX de Registro</span>
+        <span class="counter">Diapositiva 4 / 8</span>
+      </div>
+      <h2>Login Unificado, Roles y Correo Institucional Automático</h2>
+      <div class="grid-2">
+        <div class="panel">
+          <h3>Reglas de Negocio en Autenticación</h3>
+          <ul>
+            <li><strong>Login unificado:</strong> Un único acceso detecta en tiempo real <code>@esucar.cl</code> o <code>@carabineros.cl</code>.</li>
+            <li><strong>Rol Estudiante / Funcionario:</strong> Estudiante asigna <code>@esucar.cl</code>; Funcionario asigna <code>@carabineros.cl</code> y exige <strong>Grado policial</strong>.</li>
+            <li><strong>Generación automática RFC/ASCII:</strong> A medida que se ingresan <em>Nombres</em>, <em>1er Apellido</em> y <em>2do Apellido</em>, remueve tildes y caracteres con Unicode <code>NFD</code>.</li>
+            <li><strong>Banner institucional invertido:</strong> Transformación vía <code>ColorFilter.colorMatrix</code> a verde oficial sobre tarjeta blanca.</li>
+          </ul>
+        </div>
+        <div class="code-card">
+          <div class="code-header">data/Models.kt · generateInstitutionalEmail()</div>
+<pre><code><span class="kw">fun</span> <span class="fn">sanitizeEmailToken</span>(input: String): String =
+    Normalizer.normalize(input.trim().lowercase(Locale.ROOT), Normalizer.Form.NFD)
+        .replace(Regex(<span class="str">"\\p{InCombiningDiacriticalMarks}+"</span>), <span class="str">""</span>)
+        .replace(Regex(<span class="str">"[^a-z0-9]"</span>), <span class="str">""</span>)
+
+<span class="kw">fun</span> <span class="fn">generateInstitutionalEmail</span>(
+    firstName: String, firstLastName: String, secondLastName: String, userRole: UserRole
+): String {
+    <span class="kw">val</span> first = firstName.trim().split(Regex(<span class="str">"\\s+"</span>)).firstOrNull()?.let(::sanitizeEmailToken).orEmpty()
+    <span class="kw">val</span> last1 = firstLastName.trim().split(Regex(<span class="str">"\\s+"</span>)).joinToString(<span class="str">""</span>, transform = ::sanitizeEmailToken)
+    <span class="kw">val</span> last2Init = secondLastName.trim().let(::sanitizeEmailToken).firstOrNull()?.toString().orEmpty()
+    <span class="kw">val</span> domain = <span class="kw">if</span> (userRole == UserRole.FUNCIONARIO) <span class="str">"carabineros.cl"</span> <span class="kw">else</span> <span class="str">"esucar.cl"</span>
+    <span class="cm">// Ej: "María José", "O'Connor", "Núñez" -&gt; maria.oconnor.n@esucar.cl</span>
+    ...
+}</code></pre>
+        </div>
+      </div>
+      <div class="script-box">
+        <div class="script-title">Guion de Exposición</div>
+        <p class="speech"><span class="speaker-jose">José</span>"Eliminamos el paso redundante de escoger dominio al iniciar sesión. En el registro, conforme el usuario escribe su nombre y ambos apellidos separados, <code>generateInstitutionalEmail</code> normaliza acentos con Unicode NFD y crea un correo válido al instante."</p>
+        <p class="speech"><span class="speaker-martin">Martín</span>"Si selecciona Estudiante usa <code>@esucar.cl</code>; si cambia a Funcionario conmuta automáticamente a <code>@carabineros.cl</code> y despliega el selector obligatorio de Grado policial. También invertimos el logo de portada con una matriz de color al verde institucional."</p>
+      </div>
+    </section>
+
+    <!-- SLIDE 5 -->
+    <section class="slide">
+      <div class="slide-meta">
+        <span class="tag">04 · Integridad Académica</span>
+        <span class="counter">Diapositiva 5 / 8</span>
+      </div>
+      <h2>Registro Inmutable de Temas y Cálculo Ponderado</h2>
+      <div class="grid-2">
+        <div class="panel">
+          <h3>Inmutabilidad y Seguimiento Real</h3>
+          <ul>
+            <li><strong>Registro Append/Delete Only:</strong> La tabla <code>project_topics</code> carece de método <code>UPDATE</code> por arquitectura; los temas solo se añaden o se eliminan con confirmación.</li>
+            <li><strong>Bloqueo en Perfil:</strong> El campo de tema en el perfil es de solo lectura para garantizar trazabilidad académica.</li>
+            <li><strong>Progreso Ponderado:</strong> Combina avances parciales de entregables (<em>En desarrollo 35%</em>, <em>Enviado 75%</em>, <em>Aprobado 100%</em>) con tareas de cada etapa.</li>
+          </ul>
+        </div>
+        <div class="code-card">
+          <div class="code-header">LocalRepository.kt &amp; ProgressCalculator.kt</div>
+<pre><code><span class="cm">// Contrato estricto: únicamente Insert y Delete (sin actualización)</span>
+<span class="kw">fun</span> <span class="fn">addProjectTopic</span>(topic: ProjectTopic) {
+    database.writableDatabase.insertWithOnConflict(<span class="str">"project_topics"</span>, <span class="kw">null</span>, values, CONFLICT_IGNORE)
+}
+<span class="kw">fun</span> <span class="fn">deleteProjectTopic</span>(id: String) {
+    database.writableDatabase.delete(<span class="str">"project_topics"</span>, <span class="str">"id = ?"</span>, arrayOf(id))
+}
+
+<span class="cm">// Fórmula ponderada en ProgressCalculator.kt</span>
+<span class="kw">val</span> deliverableScore = deliverables.sumOf { <span class="kw">when</span> (it.status) {
+    DeliverableStatus.TODO        -&gt; 0.0
+    DeliverableStatus.IN_PROGRESS -&gt; 0.35
+    DeliverableStatus.SUBMITTED   -&gt; 0.75
+    DeliverableStatus.APPROVED    -&gt; 1.0
+}}</code></pre>
+        </div>
+      </div>
+      <div class="script-box">
+        <div class="script-title">Guion de Exposición</div>
+        <p class="speech"><span class="speaker-martin">Martín</span>"Para resguardar los temas inscritos de investigación, hicimos que el registro sea estrictamente no modificable: en SQLite no existe ningún <code>UPDATE</code> sobre <code>project_topics</code>, únicamente alta y eliminación confirmada."</p>
+        <p class="speech"><span class="speaker-jose">José</span>"Y todo ese seguimiento alimenta <code>calculateProgress</code>, que pondera cada hito según su estado real de avance junto con las listas de verificación de las cinco etapas del Trabajo de Título."</p>
+      </div>
+    </section>
+
+    <!-- SLIDE 6 -->
+    <section class="slide">
+      <div class="slide-meta">
+        <span class="tag">05 · Multimedia Media3 en Segundo Plano</span>
+        <span class="counter">Diapositiva 6 / 8</span>
+      </div>
+      <h2>Radio Carabineros en Vivo con MediaSessionService</h2>
+      <div class="grid-2">
+        <div class="panel">
+          <h3>Mejores Prácticas Media3 (API 35)</h3>
+          <ul>
+            <li><strong>Servicio Foreground <code>mediaPlayback</code>:</strong> <code>ExoPlayer</code> vive dentro de <code>RadioPlaybackService</code> con <code>WAKE_MODE_NETWORK</code> y manejo automático de foco de audio.</li>
+            <li><strong>Notificación persistente:</strong> <code>DefaultMediaNotificationProvider</code> muestra controles <strong>Play / Pause</strong>, metadatos (<em>FM 98.1 / AM 820</em>) y emblema institucional.</li>
+            <li><strong>Sincronización bidireccional:</strong> <code>MediaController</code> conecta el ViewModel con el servicio, manteniendo sincronizada la barra <code>MiniRadioBar</code> y su slider de volumen.</li>
+            <li><strong>Accesos rápidos:</strong> Radio en vivo, Revista Carabineros y Museo de Carabineros.</li>
+          </ul>
+        </div>
+        <div class="code-card">
+          <div class="code-header">radio/RadioPlaybackService.kt</div>
+<pre><code><span class="kw">class</span> RadioPlaybackService : <span class="fn">MediaSessionService</span>() {
+    <span class="kw">override fun</span> <span class="fn">onCreate</span>() {
+        <span class="kw">super</span>.onCreate()
+        <span class="kw">val</span> provider = DefaultMediaNotificationProvider.Builder(<span class="kw">this</span>)
+            .setChannelId(RADIO_CHANNEL_ID).setNotificationId(3001)
+            .build().apply { setSmallIcon(R.drawable.ic_radio_notification) }
+        setMediaNotificationProvider(provider)
+
+        <span class="kw">val</span> player = ExoPlayer.Builder(<span class="kw">this</span>)
+            .setAudioAttributes(audioAttributes, <span class="kw">true</span>)
+            .setHandleAudioBecomingNoisy(<span class="kw">true</span>)
+            .setWakeMode(C.WAKE_MODE_NETWORK)
+            .build()
+
+        mediaSession = MediaSession.Builder(<span class="kw">this</span>, player)
+            .setSessionActivity(sessionActivityIntent).build()
+    }
+}</code></pre>
+        </div>
+      </div>
+      <div class="script-box">
+        <div class="script-title">Guion de Exposición</div>
+        <p class="speech"><span class="speaker-jose">José</span>"Para reproducir Radio Carabineros directamente dentro de la app sin cortes al bloquear el celular, desacoplamos ExoPlayer hacia un <code>MediaSessionService</code> siguiendo la arquitectura oficial de AndroidX Media3."</p>
+        <p class="speech"><span class="speaker-martin">Martín</span>"Gracias a <code>DefaultMediaNotificationProvider</code> y <code>MediaController</code>, el usuario puede pausar o reanudar desde la notificación persistente o pantalla de bloqueo, mientras nuestra <code>MiniRadioBar</code> mantiene sincronizado el volumen y la señal en vivo."</p>
+      </div>
+    </section>
+
+    <!-- SLIDE 7 -->
+    <section class="slide">
+      <div class="slide-meta">
+        <span class="tag">06 · Confiabilidad Android 15 &amp; Pruebas JUnit</span>
+        <span class="counter">Diapositiva 7 / 8</span>
+      </div>
+      <h2>Intents Seguros (&lt;queries&gt;), WorkManager y Tests Unitarios</h2>
+      <div class="grid-2">
+        <div class="panel">
+          <h3>Ingeniería de Calidad</h3>
+          <ul>
+            <li><strong>Visibilidad de paquetes:</strong> Bloque <code>&lt;queries&gt;</code> para <code>ACTION_VIEW</code> (HTTPS/HTTP) resuelve apertura externa de Revista y Museo en Android 11–15.</li>
+            <li><strong>Recordatorios autónomos:</strong> <code>WorkManager</code> verifica permiso <code>POST_NOTIFICATIONS</code> en API 33+ y alerta sobre hitos próximos.</li>
+            <li><strong>Pruebas automatizadas JUnit:</strong> Validan correos institucionales, normalización RFC, rangos policiales, formato APA 7 y avance ponderado.</li>
+            <li><strong>Identidad de APK:</strong> Ícono adaptativo propio de alta resolución y compilación limpia con Lint.</li>
+          </ul>
+        </div>
+        <div class="code-card">
+          <div class="code-header">AndroidManifest.xml &amp; StudyToolsTest.kt</div>
+<pre><code><span class="cm">&lt;!-- Permite abrir enlaces externos en targetSdk 35 --&gt;</span>
+&lt;queries&gt;
+    &lt;intent&gt;
+        &lt;action android:name=<span class="str">"android.intent.action.VIEW"</span> /&gt;
+        &lt;category android:name=<span class="str">"android.intent.category.BROWSABLE"</span> /&gt;
+        &lt;data android:scheme=<span class="str">"https"</span> /&gt;
+    &lt;/intent&gt;
+&lt;/queries&gt;
+
+<span class="cm">// Validación JUnit de reglas críticas</span>
+<span class="kw">@Test</span> <span class="kw">fun</span> <span class="fn">`generateInstitutionalEmail normalizes names`</span>() {
+    assertEquals(<span class="str">"maria.oconnor.n@esucar.cl"</span>,
+        generateInstitutionalEmail(<span class="str">"María José"</span>, <span class="str">"O'Connor"</span>, <span class="str">"Núñez"</span>, UserRole.ESTUDIANTE))
+}</code></pre>
+        </div>
+      </div>
+      <div class="script-box">
+        <div class="script-title">Guion de Exposición</div>
+        <p class="speech"><span class="speaker-martin">Martín</span>"En versiones modernas de Android, las aplicaciones no pueden consultar navegadores externos sin declarar el bloque <code>&lt;queries&gt;</code> en el manifiesto. Al incorporarlo junto con WorkManager, tanto los accesos directos web como las alertas diarias operan sin fallos."</p>
+        <p class="speech"><span class="speaker-jose">José</span>"Cada regla crítica —desde la generación de correos y citas APA 7 hasta el cálculo de avance— está cubierta por pruebas unitarias JUnit y verificación Lint antes de empaquetar el APK final."</p>
+      </div>
+    </section>
+
+    <!-- SLIDE 8 -->
+    <section class="slide cover">
+      <div class="slide-meta">
+        <span class="tag">07 · Conclusiones &amp; Demo en Vivo</span>
+        <span class="counter">Diapositiva 8 / 8</span>
+      </div>
+      <h2>Conclusiones e Impacto · "ORDEN Y PATRIA"</h2>
+      <div class="cards-3">
+        <div class="pillar">
+          <h4>1. Seguridad &amp; Acceso</h4>
+          <p>SQLite local cifrado con PBKDF2-SHA256, login unificado, rol Estudiante/Funcionario y generación automática de correo institucional.</p>
+        </div>
+        <div class="pillar">
+          <h4>2. Rigor Metodológico</h4>
+          <p>Registro inmutable de temas, 5 etapas con bitácora, generador APA 7 chileno, Pomodoro y recordatorios con WorkManager.</p>
+        </div>
+        <div class="pillar">
+          <h4>3. Ecosistema Media3</h4>
+          <p>Radio Carabineros en vivo con servicio en segundo plano, notificación persistente Play/Pause e ícono adaptativo oficial.</p>
+        </div>
+      </div>
+
+      <div class="script-box">
+        <div class="script-title">Guion de Exposición · Cierre y Transición a Demo</div>
+        <p class="speech"><span class="speaker-jose">José</span>"En síntesis, Tutor Virtual ESUCAR entrega una solución nativa liviana, segura offline y diseñada con rigor técnico para acompañar al futuro Suboficial en todo su Trabajo de Título."</p>
+        <p class="speech"><span class="speaker-martin">Martín</span>"Ahora revisaremos la demostración en vivo en el dispositivo Android: probaremos la generación automática de correo en el registro, la inmutabilidad del tema de proyecto y la reproducción en segundo plano de Radio Carabineros. Muchas gracias por su atención."</p>
+      </div>
+    </section>
+
+  </main>
+
+  <script>
+    let current = 0;
+    const slides = Array.from(document.querySelectorAll('.slide'));
+    const indicator = document.getElementById('indicator');
+    const modeBtn = document.getElementById('modeBtn');
+
+    function renderSlide() {
+      slides.forEach((s, i) => s.classList.toggle('active', i === current));
+      indicator.textContent = `${current + 1} / ${slides.length}`;
+    }
+
+    function moveSlide(delta) {
+      current = Math.max(0, Math.min(slides.length - 1, current + delta));
+      renderSlide();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function toggleMode() {
+      const isPresent = document.body.classList.toggle('present-mode');
+      modeBtn.textContent = isPresent ? 'Ver Todo / Imprimir' : 'Modo Diapositivas';
+      document.getElementById('prevBtn').style.display = isPresent ? '' : 'none';
+      document.getElementById('nextBtn').style.display = isPresent ? '' : 'none';
+      indicator.style.display = isPresent ? '' : 'none';
+    }
+
+    document.addEventListener('keydown', (e) => {
+      if (!document.body.classList.contains('present-mode')) return;
+      if (e.key === 'ArrowRight' || e.key === 'PageDown') moveSlide(1);
+      if (e.key === 'ArrowLeft' || e.key === 'PageUp') moveSlide(-1);
+    });
+  </script>
+</body>
+</html>

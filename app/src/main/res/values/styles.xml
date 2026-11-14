@@ -1,9 +1,3 @@
 <resources>
-    <style name="Theme.TutorVirtual" parent="android:style/Theme.Material.Light.NoActionBar">
-        <item name="android:fontFamily">sans</item>
-        <item name="android:colorAccent">#8BAF3A</item>
-        <item name="android:navigationBarColor">#F4F4F4</item>
-        <item name="android:statusBarColor">#17654F</item>
-        <item name="android:windowLightStatusBar">false</item>
-    </style>
+    <style name="Theme.TutorVirtual" parent="android:Theme.Material.Light.NoActionBar" />
 </resources>

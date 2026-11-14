@@ -4,12 +4,13 @@
 
 # 🛡️ Tutor Virtual ESUCAR 🇨🇱
 ### *Escuela de Suboficiales de Carabineros de Chile "SOM Fabriciano González Urzúa"*
-**Plataforma Móvil Educativa de Acompañamiento Metodológico para Trabajos de Título**
+**Plataforma Móvil Nativa de Acompañamiento Metodológico para Trabajos de Título**
 
-![Android](https://img.shields.io/badge/Android-Jetpack%20Compose-007328?style=for-the-badge&logo=android&logoColor=white)
-![Kotlin](https://img.shields.io/badge/Kotlin-1.9.20-007328?style=for-the-badge&logo=kotlin&logoColor=white)
-![Material 3](https://img.shields.io/badge/Material--3-Design-007328?style=for-the-badge&logo=google&logoColor=white)
-![Offline First](https://img.shields.io/badge/Offline--First-100%25-007328?style=for-the-badge&logo=sqlite&logoColor=white)
+![Android](https://img.shields.io/badge/Android-API%2026--35-1B5E3F?style=for-the-badge&logo=android&logoColor=white)
+![Kotlin](https://img.shields.io/badge/Kotlin-2.0.21-1B5E3F?style=for-the-badge&logo=kotlin&logoColor=white)
+![Jetpack Compose](https://img.shields.io/badge/Jetpack%20Compose-Material%203-1B5E3F?style=for-the-badge&logo=jetpackcompose&logoColor=white)
+![Media3](https://img.shields.io/badge/Media3-ExoPlayer%20%26%20Session-1B5E3F?style=for-the-badge)
+![Offline First](https://img.shields.io/badge/SQLite-PBKDF2--SHA256-1B5E3F?style=for-the-badge&logo=sqlite&logoColor=white)
 
 ---
 
@@ -21,27 +22,39 @@
 ## 👥 Integrantes del Equipo
 
 - 👮 **José Arturo T.**
-- 👮 **Martin Hernandez**
+- 👮 **Martín Hernández**
 
 ---
 
 ## 📌 Descripción General
 
-**Tutor Virtual ESUCAR** es una solución tecnológica móvil creada para orientar y acompañar a los funcionarios y alumnos de la **Escuela de Suboficiales de Carabineros de Chile (ESUCAR)** durante la investigación y redacción de su **Trabajo de Título**. 
+**Tutor Virtual ESUCAR** es una aplicación móvil nativa en **Kotlin y Jetpack Compose** creada para orientar y acompañar a los estudiantes y funcionarios de la **Escuela de Suboficiales de Carabineros de Chile (ESUCAR)** durante la investigación y redacción de su **Trabajo de Título**.
 
-La aplicación permite conciliar la alta exigencia operativa de la función policial con el rigor académico, proporcionando herramientas metodológicas autónomas, gestión de hitos, temporizador de estudio y soporte de citación normativa **100% accesible sin conexión a internet**.
+La plataforma combina un diseño institucional suave anti-fatiga visual con persistencia **100% offline-first en SQLite** protegida criptográficamente, herramientas académicas (APA 7, Pomodoro, bitácora y gestión de hitos) e integración multimedia en vivo con **Radio Carabineros de Chile** en segundo plano mediante **AndroidX Media3**.
 
 ---
 
 ## ✨ Características Principales
 
-### 🔐 1. Autenticación SSO e Inicio de Sesión Institucional
-- **Acceso Rápido SSO (Single Sign-On):** Autenticación en un toque mediante la Identidad Digital de Carabineros de Chile (`@carabineros.cl` o `@esucar.cl`) o ClaveÚnica Institucional.
-- **Validación de Correo en Tiempo Real:** Detección de dominios oficiales con distintivo visual de *Dominio Verificado*.
-- **Perfil Personalizado:** Registro de Grado Policial (*Cabo 1°, Sargento 2°, Suboficial, Alumno*), Nombre Completo, Tema de Investigación y Profesor Tutor asignado.
+### 🔐 1. Login Unificado, Roles y Generación Automática de Correo
+- **Acceso unificado (`@esucar.cl` / `@carabineros.cl`):** Detección automática del dominio institucional sin tarjetas redundantes previas.
+- **Selector de Rol (`Estudiante` / `Funcionario`):**
+  - **Estudiante:** asigna automáticamente dominio `@esucar.cl` y rango `Alumno ESUCAR`.
+  - **Funcionario:** asigna automáticamente dominio `@carabineros.cl` y habilita el selector obligatorio de **Grado policial** (*Cabo 2°, Cabo 1°, Sargento 2°, Sargento 1°, Suboficial, Oficial Subalterno / Asesor*).
+- **Generación RFC/ASCII en tiempo real:** Al completar **Nombres**, **1er Apellido** y **2do Apellido** separados, normaliza tildes y caracteres especiales mediante Unicode `NFD` para proponer automáticamente el correo institucional (p. ej., `maria.oconnor.n@esucar.cl` o `marcos.soto.r@carabineros.cl`), manteniendo edición manual opcional.
+- **Seguridad criptográfica local:** Base de datos **SQLite (v6)** con derivación `PBKDF2WithHmacSHA256` (120.000 iteraciones, `SecureRandom` salt de 16 bytes, comparación constante `MessageDigest.isEqual` y limpieza de memoria `clearPassword()`).
+- **Superposición de carga global (`GlobalLoadingOverlay`):** Bloquea interacciones accidentales durante autenticación, guardado de perfil y conexión multimedia.
 
-### 🎓 2. Listado Oficial de 7 Profesores Tutores ESUCAR
-Selección directa de los docentes especialistas oficializados por ESUCAR:
+### 📚 2. Registro Inmutable de Temas de Proyecto
+- Los temas de proyecto registrados en SQLite (`project_topics`) **no son modificables** por diseño (solo permiten **añadir** nuevos temas o **eliminar** con confirmación), resguardando la trazabilidad académica tanto en Inicio como en el Perfil de usuario.
+
+### 📻 3. Radio Carabineros en Vivo y Accesos Rápidos Institucionales
+- **Reproducción nativa en segundo plano (Media3):** Implementada con `RadioPlaybackService` (`MediaSessionService` + `ExoPlayer` + `WAKE_MODE_NETWORK`), manejando foco de audio y audio en vivo (`FM 98.1 / AM 820`).
+- **Notificación persistente Play/Pause:** Generada por `DefaultMediaNotificationProvider` con ícono institucional, controles en barra de notificaciones/pantalla de bloqueo y sincronización bidireccional mediante `MediaController`.
+- **Barra multimedia personalizada (`MiniRadioBar`):** Permanece visible sobre la barra inferior para reproducir, pausar, reintentar, silenciar y ajustar el volumen con precisión en tiempo real.
+- **Accesos rápidos dedicados:** **Radio Carabineros**, **Revista Carabineros** y **Museo de Carabineros** (con declaración `<queries>` para `ACTION_VIEW` en Android 11–15).
+
+### 🎓 4. Listado Oficial de 7 Profesores Tutores ESUCAR
 1. **Prof. Dr. Nelson Soto V.** *(Metodología ESUCAR)*
 2. **Dra. Patricia Morales G.** *(Seguridad Pública)*
 3. **Coronel (R) Carlos Ibáñez M.** *(Gestión Policial)*
@@ -50,74 +63,67 @@ Selección directa de los docentes especialistas oficializados por ESUCAR:
 6. **Capitán Andrea Silva L.** *(Criminología Operacional)*
 7. **Prof. Marcela Reyes B.** *(Redacción Académica y APA 7)*
 
-### ⏱️ 3. Módulo de Herramientas de Estudio (Pestaña "Estudio")
-- **Método Pomodoro de Enfoque:** Bloques de 25 minutos de lectura/redacción intensa con 5 minutos de descanso, diseñados para optimizar breves ventanas de tiempo entre turnos operativos.
-- **Generador de Citas APA 7 Institucional:** Formateador automático con plantillas para **Leyes Chilenas** *(Ley Orgánica 18.961)*, **Reglamentos de Carabineros de Chile** *(Reglamento de Disciplina N° 11)* y Libros académicos, con botón de copiado al portapapeles.
-- **Matriz de Consistencia Metodológica:** Guía interactiva de alineación entre Problema, Pregunta, Objetivo General, Objetivos Específicos y Metodología.
+### ⏱️ 5. Herramientas Académicas, Etapas y Hitos
+- **5 Etapas con checklist, notas y evidencias:** *Planteamiento, Marco Teórico, Metodología, Recogida de información y Análisis de resultados*, con cálculo ponderado en tiempo real (`ProgressCalculator`).
+- **Módulo de Estudio:** Temporizador **Pomodoro (25/5 min)**, **Generador de Citas APA 7** para leyes chilenas y reglamentos policiales, y **Matriz de Consistencia**.
+- **Gestión de Hitos y Recordatorios:** CRUD de entregables con etiquetas de urgencia y notificaciones diarias mediante `WorkManager`.
 
-### 📋 4. Guía Metodológica y Bitácora Personal por Etapa
-- **5 Etapas Estructuradas:** *Planteamiento, Marco Teórico, Metodología, Recogida de Información y Análisis de Resultados*.
-- **Avance Visible:** Indicador de tareas completadas por etapa (ej. `2 de 3 tareas completadas`) con mini barra de progreso.
-- **Bitácora del Estudiante:** Espacio de notas personales con autoguardado permanente para registrar consultas hacia el profesor tutor.
-- **Evidencias Nativas:** Captura directa con cámara fotográfica o archivo adjunto de avance.
-
-### 📅 5. Gestión Completa de Hitos Académicos (Deliverables)
-- Operaciones complejas de **Crear, Editar, Modificar Estado y Eliminar Hitos** con confirmación.
-- **Etiquetas de Urgencia Automáticas:** Identificación visual de entregas *(Vence pronto <= 3 días, Próximo <= 7 días, Vencido, A tiempo)*.
-- **Notificaciones Locales:** Recordatorios del sistema con `WorkManager` para evitar retrasos académicos.
-
-### 🎨 6. Identidad Visual Institucional `#007328`
-- **Color Oficial Carabineros (`#007328`):** Paleta corporativa con acento Verde Lima (`#8BAF3A`), Azul (`#1F4768`) y Blanco.
-- **Footer Compacto Optimizado:** Navegación inferior basada en `Surface` + `Row` (`56.dp`) que maximiza el área útil de lectura y elimina recortes de íconos.
+### 🎨 6. Identidad Visual Anti-Fatiga e Ícono Adaptativo del APK
+- **Paleta institucional suave (`#1B5E3F`, `#F6F8F6`, `#EAF2ED`):** Reduce la fatiga visual; banner de login invertido mediante `ColorFilter.colorMatrix` sobre tarjeta blanca y footer Edge-to-Edge con `navigationBarsPadding()`.
+- **Ícono adaptativo propio del APK:** Escudo institucional ESUCAR en esmeralda, marfil y dorado centrado en la zona segura adaptativa (`mipmap-anydpi-v26`).
 
 ---
 
-## 🛠️ Arquitectura y Tecnologías
+## 🛠️ Arquitectura y Estructura del Proyecto
 
 ```
-cl.esucar.tutorvirtual
-│
-├── data/                       # Capa de Datos y Modelos
-│   ├── Models.kt               # UserProfile, Stage, Deliverable, ApaTemplate, Urgency logic
-│   ├── LocalRepository.kt      # Persistencia offline en SharedPreferences
-│   └── ProgressCalculator.kt   # Algoritmo de cálculo de avance ponderado
-│
-├── ui/                         # Capa de Interfaz y Estado
-│   ├── InstitutionalTheme.kt   # Paleta corporativa (#007328, M3 LightColors)
-│   └── TutorViewModel.kt       # Gestión de estado (StateFlow) y temporizador Pomodoro
-│
-└── MainActivity.kt             # UI Jetpack Compose, Login, SSO Modal, Screens y Footer
+├── app/src/main/java/cl/esucar/tutorvirtual/
+│   ├── data/
+│   │   ├── Models.kt                # UserProfile, UserRole, generador RFC de correos, APA 7, FAQs
+│   │   ├── LocalRepository.kt       # SQLite v6, PBKDF2-SHA256, project_topics inmutables, hitos
+│   │   └── ProgressCalculator.kt    # Algoritmo de cálculo ponderado de avance
+│   ├── radio/
+│   │   └── RadioPlaybackService.kt  # Media3 MediaSessionService + notificación persistente Play/Pause
+│   ├── ui/
+│   │   ├── InstitutionalTheme.kt    # Paleta institucional anti-fatiga visual (Material 3)
+│   │   └── TutorViewModel.kt        # StateFlow, MediaController Media3, Pomodoro y auth async
+│   ├── DeadlineReminderWorker.kt    # Recordatorios diarios con WorkManager
+│   └── MainActivity.kt              # Jetpack Compose UI, Login unificado, MiniRadioBar y Edge-to-Edge
+├── app/src/test/java/cl/esucar/tutorvirtual/data/
+│   ├── ProgressCalculatorTest.kt    # Pruebas unitarias de cálculo ponderado
+│   └── StudyToolsTest.kt            # Pruebas unitarias de dominios, roles, correos, APA 7 y urgencias
+└── docs/
+    ├── Presentacion_Tutor_Virtual_ESUCAR.pptx  # Presentación PowerPoint (8 diapositivas + guion)
+    └── presentacion.html                       # Presentación web interactiva + código crítico + guion
 ```
 
-- **UI:** Jetpack Compose + Material 3 Components.
-- **Arquitectura:** MVVM (Model-View-ViewModel) con Kotlin `StateFlow`.
-- **Persistencia:** `LocalRepository` (`SharedPreferences` + JSON).
-- **Procesos en Segundo Plano:** `WorkManager` + `NotificationCompat`.
-- **Integraciones Nativas:** Cámara Android, Storage Access Framework y Clipboard.
+- **Lenguaje y UI:** Kotlin `2.0.21` + Jetpack Compose BOM `2024.12.01` + Material 3.
+- **Multimedia:** `androidx.media3:media3-exoplayer:1.5.1` y `androidx.media3:media3-session:1.5.1`.
+- **Persistencia y Concurrencia:** SQLite nativo + Coroutines (`StateFlow`) + `WorkManager`.
+- **SDK:** `minSdk = 26`, `compileSdk = 35`, `targetSdk = 35`.
 
 ---
 
-## 🚀 Ejecutar el Proyecto en Android Studio
+## 📊 Material de Presentación (José y Martín)
 
-1. Clonar o abrir la carpeta raíz del proyecto en **Android Studio Jellyfish / Iguana / Hedgehog**.
-2. Sincronizar las dependencias de Gradle con **JDK 17**.
-3. Seleccionar o crear un emulador **Android API 26+** (o conectar un dispositivo físico con Depuración USB).
-4. Ejecutar la configuración de inicio **`app`**.
-5. *Opcional:* Aceptar el permiso de Notificaciones y Cámara cuando la app lo solicite.
+- **PowerPoint descargable:** [`docs/Presentacion_Tutor_Virtual_ESUCAR.pptx`](docs/Presentacion_Tutor_Virtual_ESUCAR.pptx) *(8 diapositivas con extractos de código críticos, guion en pantalla y notas del orador).*
+- **Presentación Web interactiva:** [`docs/presentacion.html`](docs/presentacion.html) *(navegación por teclado `←`/`→` y modo de impresión PDF).*
 
 ---
 
-## 🧪 Pruebas Unitarias Automatizadas
+## 🚀 Compilación y Pruebas Unitarias
 
-El proyecto cuenta con cobertura de pruebas unitarias automatizadas para validar la lógica del perfil SSO, generador APA 7, cálculo de urgencias y avance metodológico.
-
-Para ejecutar la suite de pruebas desde la terminal:
-```powershell
-./gradlew test
+1. Abrir el proyecto en **Android Studio** con **JDK 21**.
+2. Ejecutar las pruebas unitarias automatizadas:
+```bash
+./gradlew testDebugUnitTest
 ```
-
-Para generar la compilación del APK Debug:
-```powershell
+3. Verificar análisis estático Lint:
+```bash
+./gradlew lintDebug
+```
+4. Generar el APK Debug firmado:
+```bash
 ./gradlew :app:assembleDebug
 ```
 
