@@ -1,151 +1,44 @@
-package cl.esucar.tutorvirtual.data
+package cl.esucar.tutorvirtual.domain.model
 
-import java.text.Normalizer
 import java.text.SimpleDateFormat
-import java.util.*
+import java.util.Calendar
+import java.util.Date
+import java.util.Locale
 
 enum class DeliverableStatus(val label: String) {
-    TODO("Por iniciar"), IN_PROGRESS("En desarrollo"), SUBMITTED("Enviado"), APPROVED("Aprobado")
+    TODO("Por iniciar"),
+    IN_PROGRESS("En desarrollo"),
+    SUBMITTED("Enviado"),
+    APPROVED("Aprobado")
 }
 
-enum class InstitutionType(val label: String) {
-    ESUCAR("ESUCAR"),
-    CARABINEROS("Carabineros de Chile")
+enum class DeliverableUrgency {
+    EXPIRED,
+    URGENT,
+    UPCOMING,
+    NORMAL
 }
 
-enum class UserRole(val label: String) {
-    ESTUDIANTE("Estudiante"),
-    FUNCIONARIO("Funcionario")
+enum class RadioPlaybackState {
+    STOPPED,
+    BUFFERING,
+    PLAYING,
+    PAUSED,
+    ERROR
 }
 
-data class UserProfile(
-    val rank: String = "Alumno ESUCAR",
-    val firstName: String = "",
-    val firstLastName: String = "",
-    val secondLastName: String = "",
-    val fullName: String = buildFullName(firstName, firstLastName, secondLastName),
-    val email: String = "",
-    val researchTopic: String = "",
-    val tutorName: String = "",
-    val ssoProvider: String = "Correo Institucional",
-    val institutionType: InstitutionType = InstitutionType.ESUCAR,
-    val userRole: UserRole = UserRole.ESTUDIANTE,
-    val isLoggedIn: Boolean = false
-)
-
-data class ProjectTopic(
-    val id: String,
-    val title: String,
-    val createdAt: String
-)
-
-fun buildFullName(firstName: String, firstLastName: String, secondLastName: String): String =
-    listOf(firstName.trim(), firstLastName.trim(), secondLastName.trim())
-        .filter { it.isNotBlank() }
-        .joinToString(" ")
-
-fun institutionForEmail(email: String): InstitutionType? {
-    val clean = email.trim().lowercase()
-    val parts = clean.split("@")
-    if (parts.size != 2 || parts[0].isBlank()) return null
-    return when (parts[1]) {
-        "esucar.cl" -> InstitutionType.ESUCAR
-        "carabineros.cl" -> InstitutionType.CARABINEROS
-        else -> null
-    }
+enum class PomodoroMode(val label: String, val helperText: String, val defaultSeconds: Int) {
+    STUDY(
+        label = "MÉTODO POMODORO · BLOQUE DE ENFOQUE",
+        helperText = "25 min de lectura y redacción sin distracciones",
+        defaultSeconds = 25 * 60
+    ),
+    REST(
+        label = "MÉTODO POMODORO · DESCANSO",
+        helperText = "5 min para pausar y descansar la vista",
+        defaultSeconds = 5 * 60
+    )
 }
-
-fun isValidInstitutionalEmail(email: String): Boolean = institutionForEmail(email) != null
-
-fun isEmailForInstitution(email: String, institutionType: InstitutionType): Boolean =
-    institutionForEmail(email) == institutionType
-
-fun resolveProfileRank(
-    institutionType: InstitutionType,
-    userRole: UserRole,
-    selectedRank: String
-): String = when (institutionType) {
-    InstitutionType.CARABINEROS -> {
-        val clean = selectedRank.trim()
-        if (clean.isBlank() || clean == "Alumno ESUCAR" || clean == "Funcionario ESUCAR") {
-            defaultRanks[1]
-        } else {
-            clean
-        }
-    }
-    InstitutionType.ESUCAR -> {
-        if (userRole == UserRole.FUNCIONARIO) "Funcionario ESUCAR" else "Alumno ESUCAR"
-    }
-}
-
-fun sanitizeEmailToken(input: String): String {
-    val normalized = Normalizer.normalize(input.trim().lowercase(Locale.ROOT), Normalizer.Form.NFD)
-    return normalized
-        .replace(Regex("\\p{InCombiningDiacriticalMarks}+"), "")
-        .replace(Regex("[^a-z0-9]"), "")
-}
-
-fun generateInstitutionalEmail(
-    firstName: String,
-    firstLastName: String,
-    secondLastName: String,
-    userRole: UserRole
-): String {
-    val firstToken = firstName.trim()
-        .split(Regex("\\s+"))
-        .firstOrNull()
-        ?.let(::sanitizeEmailToken)
-        .orEmpty()
-    val last1Token = firstLastName.trim()
-        .split(Regex("\\s+"))
-        .joinToString("", transform = ::sanitizeEmailToken)
-    val last2Initial = secondLastName.trim()
-        .split(Regex("\\s+"))
-        .firstOrNull()
-        ?.let(::sanitizeEmailToken)
-        ?.firstOrNull()
-        ?.toString()
-        .orEmpty()
-
-    val localParts = buildList {
-        if (firstToken.isNotBlank()) add(firstToken)
-        if (last1Token.isNotBlank()) add(last1Token)
-        if (firstToken.isNotBlank() && last1Token.isNotBlank() && last2Initial.isNotBlank()) {
-            add(last2Initial)
-        }
-    }
-    if (localParts.isEmpty()) return ""
-    val domain = when (userRole) {
-        UserRole.ESTUDIANTE -> "esucar.cl"
-        UserRole.FUNCIONARIO -> "carabineros.cl"
-    }
-    return "${localParts.joinToString(".")}@$domain"
-}
-
-val defaultRanks = listOf(
-    "Alumno ESUCAR",
-    "Cabo 2°",
-    "Cabo 1°",
-    "Sargento 2°",
-    "Sargento 1°",
-    "Suboficial",
-    "Oficial Subalterno / Asesor"
-)
-
-val defaultEsucarTutors = listOf(
-    "Prof. Dr. Nelson Soto V. (Metodología ESUCAR)",
-    "Dra. Patricia Morales G. (Seguridad Pública)",
-    "Coronel (R) Carlos Ibáñez M. (Gestión Policial)",
-    "Mayor Jaime Fuentes R. (Prevención e Investigaciones)",
-    "Prof. Francisco Araya T. (Derecho y Normativa Policial)",
-    "Capitán Andrea Silva L. (Criminología Operacional)",
-    "Prof. Marcela Reyes B. (Redacción Académica y APA)"
-)
-
-val ssoProviders = listOf(
-    "SSO simulado ESUCAR (@esucar.cl)",
-    "SSO simulado Carabineros de Chile (@carabineros.cl)"
-)
 
 data class Stage(
     val id: String,
@@ -164,7 +57,17 @@ data class Deliverable(
     val stageId: String
 )
 
-data class Faq(val question: String, val category: String, val answer: String)
+data class ProjectTopic(
+    val id: String,
+    val title: String,
+    val createdAt: String
+)
+
+data class Faq(
+    val question: String,
+    val category: String,
+    val answer: String
+)
 
 data class ApaTemplate(
     val category: String,
@@ -172,6 +75,19 @@ data class ApaTemplate(
     val example: String,
     val templateFormat: String
 )
+
+data class ProgressSummary(
+    val fraction: Float = 0f,
+    val percentage: Int = 0,
+    val approvedDeliverables: Int = 0,
+    val completedChecklistItems: Int = 0,
+    val totalChecklistItems: Int = 0
+)
+
+object InstitutionalLinks {
+    const val REVISTA_CARABINEROS = "https://www.revistacarabineros.cl/"
+    const val MUSEO_CARABINEROS = "https://www.museocarabineros.cl/web/sitio"
+}
 
 val demoApaTemplates = listOf(
     ApaTemplate(
@@ -193,7 +109,7 @@ val demoApaTemplates = listOf(
         templateFormat = "Apellido, N. (Año). Título del libro en cursiva (Edición). Editorial."
     ),
     ApaTemplate(
-        category = "Artículos Científicos / Revistas Policiales",
+        category = "Artículos Científicos / Revistas Policiales",
         title = "Artículo en Revista de Seguridad Pública",
         example = "Pérez, J., & Soto, M. (2022). Innovación en la gestión cuadrante de seguridad preventiva. Revista de Criminología y Ciencias Policiales, 15(2), 45-62.",
         templateFormat = "Apellido, N. (Año). Título del artículo. Nombre de la Revista, Volumen(Número), páginas."
@@ -201,11 +117,46 @@ val demoApaTemplates = listOf(
 )
 
 val demoStages = listOf(
-    Stage("planteamiento", "Planteamiento", "Delimita el problema, la pregunta de investigación y los objetivos del trabajo.", "Avance escrito, 2 a 4 páginas, interlineado 1,5.", listOf("Contexto y problema descritos", "Pregunta de investigación definida", "Objetivo general y específicos revisados"), 0xFF218265),
-    Stage("marco", "Marco Teórico", "Organiza los conceptos, antecedentes y fuentes que sustentan tu propuesta.", "Documento con citas y referencias en norma APA 7.", listOf("Fuentes académicas seleccionadas", "Conceptos clave definidos", "Citas y referencias verificadas"), 0xFF17654F),
-    Stage("metodologia", "Metodología", "Explica cómo responderás la pregunta y cómo analizarás la información.", "Capítulo metodológico con enfoque, alcance e instrumentos.", listOf("Enfoque y diseño definidos", "Población y muestra descritas", "Instrumento de recolección preparado"), 0xFF8BAF3A),
-    Stage("recogida", "Recogida de información", "Aplica los instrumentos respetando criterios éticos y registra evidencias.", "Base de datos o matriz de evidencias, con respaldo local.", listOf("Consentimientos registrados", "Instrumentos aplicados", "Matriz de datos ordenada"), 0xFF1F4768),
-    Stage("analisis", "Análisis de resultados", "Interpreta los hallazgos y relaciónalos con tus objetivos y marco teórico.", "Informe con tablas, gráficos y discusión.", listOf("Datos depurados", "Resultados visualizados", "Conclusiones conectadas a objetivos"), 0xFF3A6B5A)
+    Stage(
+        "planteamiento",
+        "Planteamiento",
+        "Delimita el problema, la pregunta de investigación y los objetivos del trabajo.",
+        "Avance escrito, 2 a 4 páginas, interlineado 1,5.",
+        listOf("Contexto y problema descritos", "Pregunta de investigación definida", "Objetivo general y específicos revisados"),
+        0xFF218265
+    ),
+    Stage(
+        "marco",
+        "Marco Teórico",
+        "Organiza los conceptos, antecedentes y fuentes que sustentan tu propuesta.",
+        "Documento con citas y referencias en norma APA 7.",
+        listOf("Fuentes académicas seleccionadas", "Conceptos clave definidos", "Citas y referencias verificadas"),
+        0xFF17654F
+    ),
+    Stage(
+        "metodologia",
+        "Metodología",
+        "Explica cómo responderás la pregunta y cómo analizarás la información.",
+        "Capítulo metodológico con enfoque, alcance e instrumentos.",
+        listOf("Enfoque y diseño definidos", "Población y muestra descritas", "Instrumento de recolección preparado"),
+        0xFF8BAF3A
+    ),
+    Stage(
+        "recogida",
+        "Recogida de información",
+        "Aplica los instrumentos respetando criterios éticos y registra evidencias.",
+        "Base de datos o matriz de evidencias, con respaldo local.",
+        listOf("Consentimientos registrados", "Instrumentos aplicados", "Matriz de datos ordenada"),
+        0xFF1F4768
+    ),
+    Stage(
+        "analisis",
+        "Análisis de resultados",
+        "Interpreta los hallazgos y relaciónalos con tus objetivos y marco teórico.",
+        "Informe con tablas, gráficos y discusión.",
+        listOf("Datos depurados", "Resultados visualizados", "Conclusiones conectadas a objetivos"),
+        0xFF3A6B5A
+    )
 )
 
 val demoDeliverables = listOf(
@@ -226,9 +177,7 @@ val demoFaqs = listOf(
     Faq("¿Qué es la Matriz de Consistencia?", "Metodología", "Es un cuadro resumen que conecta: Problema → Pregunta → Objetivo General → Objetivos Específicos → Metodología. Ayuda a mantener coherencia en tu proyecto.")
 )
 
-enum class DeliverableUrgency {
-    EXPIRED, URGENT, UPCOMING, NORMAL
-}
+val faqCategories = listOf("Todas", "Metodología", "Citación APA", "Formato", "Estudio")
 
 fun calculateUrgency(dueDateStr: String): DeliverableUrgency {
     val formats = listOf(

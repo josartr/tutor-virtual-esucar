@@ -1,4 +1,4 @@
-package cl.esucar.tutorvirtual.radio
+package cl.esucar.tutorvirtual.data.media
 
 import android.app.NotificationChannel
 import android.app.NotificationManager

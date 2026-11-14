@@ -1,5 +1,9 @@
-package cl.esucar.tutorvirtual.data
+package cl.esucar.tutorvirtual.domain
 
+import cl.esucar.tutorvirtual.domain.model.Deliverable
+import cl.esucar.tutorvirtual.domain.model.DeliverableStatus
+import cl.esucar.tutorvirtual.domain.model.Stage
+import cl.esucar.tutorvirtual.domain.usecase.calculateProgress
 import org.junit.Assert.assertEquals
 import org.junit.Test
 

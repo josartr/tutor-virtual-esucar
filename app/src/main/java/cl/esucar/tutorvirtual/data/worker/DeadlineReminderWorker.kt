@@ -1,7 +1,9 @@
-package cl.esucar.tutorvirtual
+package cl.esucar.tutorvirtual.data.worker
 
 import android.Manifest
+import android.content.Context
 import android.content.pm.PackageManager
+import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
@@ -9,13 +11,15 @@ import androidx.work.Worker
 import androidx.work.WorkerParameters
 
 class DeadlineReminderWorker(
-    appContext: android.content.Context,
+    appContext: Context,
     workerParams: WorkerParameters
 ) : Worker(appContext, workerParams) {
     override fun doWork(): Result {
-        if (android.os.Build.VERSION.SDK_INT >= 33 &&
+        if (Build.VERSION.SDK_INT >= 33 &&
             ContextCompat.checkSelfPermission(applicationContext, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
-        ) return Result.success()
+        ) {
+            return Result.success()
+        }
 
         val notification = NotificationCompat.Builder(applicationContext, "deadlines")
             .setSmallIcon(android.R.drawable.ic_dialog_info)

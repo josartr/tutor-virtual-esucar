@@ -1,5 +1,18 @@
-package cl.esucar.tutorvirtual.data
+package cl.esucar.tutorvirtual.domain
 
+import cl.esucar.tutorvirtual.domain.model.DeliverableUrgency
+import cl.esucar.tutorvirtual.domain.model.InstitutionType
+import cl.esucar.tutorvirtual.domain.model.UserProfile
+import cl.esucar.tutorvirtual.domain.model.UserRole
+import cl.esucar.tutorvirtual.domain.model.calculateUrgency
+import cl.esucar.tutorvirtual.domain.model.defaultEsucarTutors
+import cl.esucar.tutorvirtual.domain.model.defaultRanks
+import cl.esucar.tutorvirtual.domain.model.generateApaCitation
+import cl.esucar.tutorvirtual.domain.model.generateInstitutionalEmail
+import cl.esucar.tutorvirtual.domain.model.institutionForEmail
+import cl.esucar.tutorvirtual.domain.model.isEmailForInstitution
+import cl.esucar.tutorvirtual.domain.model.isValidInstitutionalEmail
+import cl.esucar.tutorvirtual.domain.model.resolveProfileRank
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue

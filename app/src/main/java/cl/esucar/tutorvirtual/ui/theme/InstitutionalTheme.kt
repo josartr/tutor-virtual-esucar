@@ -1,4 +1,4 @@
-package cl.esucar.tutorvirtual.ui
+package cl.esucar.tutorvirtual.ui.theme
 
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.lightColorScheme

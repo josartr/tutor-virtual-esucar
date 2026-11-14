@@ -1,14 +1,18 @@
-package cl.esucar.tutorvirtual.data
+package cl.esucar.tutorvirtual.domain.usecase
 
+import cl.esucar.tutorvirtual.domain.model.Deliverable
+import cl.esucar.tutorvirtual.domain.model.DeliverableStatus
+import cl.esucar.tutorvirtual.domain.model.ProgressSummary
+import cl.esucar.tutorvirtual.domain.model.Stage
 import kotlin.math.roundToInt
 
-data class ProgressSummary(
-    val fraction: Float,
-    val percentage: Int,
-    val approvedDeliverables: Int,
-    val completedChecklistItems: Int,
-    val totalChecklistItems: Int
-)
+class CalculateProgressUseCase {
+    operator fun invoke(
+        deliverables: List<Deliverable>,
+        stages: List<Stage>,
+        checklist: Map<String, Set<Int>>
+    ): ProgressSummary = calculateProgress(deliverables, stages, checklist)
+}
 
 fun calculateProgress(
     deliverables: List<Deliverable>,

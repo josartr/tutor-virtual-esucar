@@ -21,6 +21,7 @@
     </queries>
 
     <application
+        android:name=".TutorApplication"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:theme="@style/Theme.TutorVirtual"
@@ -39,7 +40,7 @@
         </activity>
 
         <service
-            android:name=".radio.RadioPlaybackService"
+            android:name=".data.media.RadioPlaybackService"
             android:exported="true"
             android:foregroundServiceType="mediaPlayback">
             <intent-filter>

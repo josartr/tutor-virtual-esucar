@@ -1,234 +1,36 @@
-package cl.esucar.tutorvirtual.data
+package cl.esucar.tutorvirtual.data.repository
 
 import android.content.ContentValues
 import android.content.Context
+import android.database.Cursor
+import android.database.sqlite.SQLiteConstraintException
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteException
-import android.database.sqlite.SQLiteOpenHelper
-import android.util.Base64
 import android.util.Log
+import cl.esucar.tutorvirtual.data.local.DATABASE_NAME
+import cl.esucar.tutorvirtual.data.local.PasswordHasher
+import cl.esucar.tutorvirtual.data.local.TutorDatabaseHelper
+import cl.esucar.tutorvirtual.domain.model.AuthResult
+import cl.esucar.tutorvirtual.domain.model.Deliverable
+import cl.esucar.tutorvirtual.domain.model.DeliverableStatus
+import cl.esucar.tutorvirtual.domain.model.InstitutionType
+import cl.esucar.tutorvirtual.domain.model.ProjectTopic
+import cl.esucar.tutorvirtual.domain.model.UserProfile
+import cl.esucar.tutorvirtual.domain.model.UserRole
+import cl.esucar.tutorvirtual.domain.model.buildFullName
+import cl.esucar.tutorvirtual.domain.model.demoDeliverables
+import cl.esucar.tutorvirtual.domain.model.demoStages
+import cl.esucar.tutorvirtual.domain.model.isEmailForInstitution
+import cl.esucar.tutorvirtual.domain.model.isValidInstitutionalEmail
+import cl.esucar.tutorvirtual.domain.repository.AcademicRepository
+import cl.esucar.tutorvirtual.domain.repository.AuthRepository
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import org.json.JSONArray
-import java.security.MessageDigest
-import java.security.SecureRandom
-import javax.crypto.SecretKeyFactory
-import javax.crypto.spec.PBEKeySpec
+import java.util.Locale
 
-private const val DATABASE_NAME = "tutor_virtual.db"
-private const val DATABASE_VERSION = 6
-
-sealed interface AuthResult {
-    data class Success(val profile: UserProfile) : AuthResult
-    data object EmailAlreadyRegistered : AuthResult
-    data object InvalidCredentials : AuthResult
-    data object InvalidRegistration : AuthResult
-    data object PersistenceError : AuthResult
-}
-
-private object PasswordHasher {
-    private const val ITERATIONS = 120_000
-    private const val KEY_LENGTH = 256
-    private const val SALT_LENGTH = 16
-
-    fun newSalt(): String {
-        val salt = ByteArray(SALT_LENGTH)
-        SecureRandom().nextBytes(salt)
-        return Base64.encodeToString(salt, Base64.NO_WRAP)
-    }
-
-    fun hash(password: String, salt: String): String {
-        val spec = PBEKeySpec(
-            password.toCharArray(),
-            Base64.decode(salt, Base64.DEFAULT),
-            ITERATIONS,
-            KEY_LENGTH
-        )
-        return try {
-            Base64.encodeToString(
-                SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
-                    .generateSecret(spec)
-                    .encoded,
-                Base64.NO_WRAP
-            )
-        } finally {
-            spec.clearPassword()
-        }
-    }
-}
-
-private class TutorDatabaseHelper(context: Context) :
-    SQLiteOpenHelper(context, DATABASE_NAME, null, DATABASE_VERSION) {
-
-    override fun onCreate(db: SQLiteDatabase) {
-        db.execSQL(
-            """
-            CREATE TABLE IF NOT EXISTS user_profile (
-                id INTEGER PRIMARY KEY CHECK (id = 1),
-                rank TEXT NOT NULL,
-                first_name TEXT NOT NULL DEFAULT '',
-                first_last_name TEXT NOT NULL DEFAULT '',
-                second_last_name TEXT NOT NULL DEFAULT '',
-                full_name TEXT NOT NULL,
-                email TEXT NOT NULL,
-                research_topic TEXT NOT NULL,
-                tutor_name TEXT NOT NULL,
-                sso_provider TEXT NOT NULL,
-                institution_type TEXT NOT NULL DEFAULT 'ESUCAR',
-                user_role TEXT NOT NULL DEFAULT 'ESTUDIANTE',
-                password_hash TEXT NOT NULL DEFAULT '',
-                password_salt TEXT NOT NULL DEFAULT '',
-                is_logged_in INTEGER NOT NULL DEFAULT 0
-            )
-            """.trimIndent()
-        )
-        db.execSQL(
-            """
-            CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                email TEXT NOT NULL UNIQUE COLLATE NOCASE,
-                first_name TEXT NOT NULL DEFAULT '',
-                first_last_name TEXT NOT NULL DEFAULT '',
-                second_last_name TEXT NOT NULL DEFAULT '',
-                full_name TEXT NOT NULL,
-                research_topic TEXT NOT NULL,
-                tutor_name TEXT NOT NULL,
-                rank TEXT NOT NULL,
-                institution_type TEXT NOT NULL,
-                user_role TEXT NOT NULL DEFAULT 'ESTUDIANTE',
-                password_hash TEXT NOT NULL,
-                password_salt TEXT NOT NULL,
-                sso_provider TEXT NOT NULL
-            )
-            """.trimIndent()
-        )
-        createAuthTables(db)
-        db.execSQL(
-            """
-            CREATE TABLE IF NOT EXISTS deliverables (
-                id TEXT PRIMARY KEY NOT NULL,
-                title TEXT NOT NULL,
-                due_date TEXT NOT NULL,
-                status TEXT NOT NULL,
-                stage_id TEXT NOT NULL
-            )
-            """.trimIndent()
-        )
-        db.execSQL(
-            """
-            CREATE TABLE IF NOT EXISTS checklist_items (
-                stage_id TEXT NOT NULL,
-                item_index INTEGER NOT NULL,
-                PRIMARY KEY (stage_id, item_index)
-            )
-            """.trimIndent()
-        )
-        db.execSQL(
-            """
-            CREATE TABLE IF NOT EXISTS stage_notes (
-                stage_id TEXT PRIMARY KEY NOT NULL,
-                note TEXT NOT NULL
-            )
-            """.trimIndent()
-        )
-        createProjectTopicsTable(db)
-    }
-
-    override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        if (oldVersion < 4) {
-            rebuildAuthenticationSchema(db)
-        } else {
-            if (oldVersion < 5) {
-                runCatching { db.execSQL("ALTER TABLE users ADD COLUMN first_name TEXT NOT NULL DEFAULT ''") }
-                runCatching { db.execSQL("ALTER TABLE users ADD COLUMN first_last_name TEXT NOT NULL DEFAULT ''") }
-                runCatching { db.execSQL("ALTER TABLE users ADD COLUMN second_last_name TEXT NOT NULL DEFAULT ''") }
-                runCatching { db.execSQL("ALTER TABLE user_profile ADD COLUMN first_name TEXT NOT NULL DEFAULT ''") }
-                runCatching { db.execSQL("ALTER TABLE user_profile ADD COLUMN first_last_name TEXT NOT NULL DEFAULT ''") }
-                runCatching { db.execSQL("ALTER TABLE user_profile ADD COLUMN second_last_name TEXT NOT NULL DEFAULT ''") }
-            }
-            if (oldVersion < 6) {
-                runCatching { db.execSQL("ALTER TABLE users ADD COLUMN user_role TEXT NOT NULL DEFAULT 'ESTUDIANTE'") }
-                runCatching { db.execSQL("ALTER TABLE user_profile ADD COLUMN user_role TEXT NOT NULL DEFAULT 'ESTUDIANTE'") }
-            }
-        }
-        createProjectTopicsTable(db)
-    }
-
-    private fun createProjectTopicsTable(db: SQLiteDatabase) {
-        db.execSQL(
-            """
-            CREATE TABLE IF NOT EXISTS project_topics (
-                id TEXT PRIMARY KEY NOT NULL,
-                title TEXT NOT NULL,
-                created_at TEXT NOT NULL
-            )
-            """.trimIndent()
-        )
-    }
-
-    private fun createAuthTables(db: SQLiteDatabase) {
-        db.execSQL(
-            """
-            CREATE TABLE IF NOT EXISTS current_session (
-                id INTEGER PRIMARY KEY CHECK (id = 1),
-                user_id INTEGER NOT NULL REFERENCES users(id)
-            )
-            """.trimIndent()
-        )
-    }
-
-    private fun createUsersTable(db: SQLiteDatabase) {
-        db.execSQL(
-            """
-            CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                email TEXT NOT NULL UNIQUE COLLATE NOCASE,
-                first_name TEXT NOT NULL DEFAULT '',
-                first_last_name TEXT NOT NULL DEFAULT '',
-                second_last_name TEXT NOT NULL DEFAULT '',
-                full_name TEXT NOT NULL,
-                research_topic TEXT NOT NULL,
-                tutor_name TEXT NOT NULL,
-                rank TEXT NOT NULL DEFAULT 'Alumno ESUCAR',
-                institution_type TEXT NOT NULL DEFAULT 'ESUCAR',
-                user_role TEXT NOT NULL DEFAULT 'ESTUDIANTE',
-                password_hash TEXT NOT NULL DEFAULT '',
-                password_salt TEXT NOT NULL DEFAULT '',
-                sso_provider TEXT NOT NULL DEFAULT 'Correo Institucional'
-            )
-            """.trimIndent()
-        )
-        createAuthTables(db)
-    }
-
-    private fun rebuildAuthenticationSchema(db: SQLiteDatabase) {
-        db.execSQL("DROP TABLE IF EXISTS current_session")
-        db.execSQL("DROP TABLE IF EXISTS users")
-        db.execSQL("DROP TABLE IF EXISTS user_profile")
-        db.execSQL(
-            """
-            CREATE TABLE user_profile (
-                id INTEGER PRIMARY KEY CHECK (id = 1),
-                rank TEXT NOT NULL DEFAULT 'Alumno ESUCAR',
-                first_name TEXT NOT NULL DEFAULT '',
-                first_last_name TEXT NOT NULL DEFAULT '',
-                second_last_name TEXT NOT NULL DEFAULT '',
-                full_name TEXT NOT NULL DEFAULT '',
-                email TEXT NOT NULL DEFAULT '',
-                research_topic TEXT NOT NULL DEFAULT '',
-                tutor_name TEXT NOT NULL DEFAULT '',
-                sso_provider TEXT NOT NULL DEFAULT 'Correo Institucional',
-                institution_type TEXT NOT NULL DEFAULT 'ESUCAR',
-                user_role TEXT NOT NULL DEFAULT 'ESTUDIANTE',
-                password_hash TEXT NOT NULL DEFAULT '',
-                password_salt TEXT NOT NULL DEFAULT '',
-                is_logged_in INTEGER NOT NULL DEFAULT 0
-            )
-            """.trimIndent()
-        )
-        createUsersTable(db)
-    }
-}
-
-class LocalRepository(context: Context) {
+class SqliteTutorRepository(context: Context) : AuthRepository, AcademicRepository {
     private val appContext = context.applicationContext
     private val database = TutorDatabaseHelper(appContext)
     private val legacyPrefs = appContext.getSharedPreferences("tutor_virtual", Context.MODE_PRIVATE)
@@ -238,17 +40,20 @@ class LocalRepository(context: Context) {
             database.writableDatabase
             migrateLegacyPreferencesIfNeeded()
         }.onFailure { error ->
-            Log.e("LocalRepository", "No se pudo inicializar la base de datos local", error)
+            Log.e(TAG, "No se pudo inicializar la base de datos local", error)
             database.close()
             appContext.deleteDatabase(DATABASE_NAME)
             runCatching { database.writableDatabase }
                 .onFailure { retryError ->
-                    Log.e("LocalRepository", "No se pudo recuperar la base de datos local", retryError)
+                    Log.e(TAG, "No se pudo recuperar la base de datos local", retryError)
                 }
         }
     }
 
-    fun loadUserProfile(): UserProfile {
+    private val _currentProfile = MutableStateFlow(loadUserProfile())
+    override val currentProfile: StateFlow<UserProfile> = _currentProfile.asStateFlow()
+
+    override fun loadUserProfile(): UserProfile {
         return try {
             database.readableDatabase.rawQuery(
                 """
@@ -263,26 +68,27 @@ class LocalRepository(context: Context) {
                 if (cursor.moveToFirst()) cursor.toUserProfile(isLoggedIn = true) else UserProfile()
             }
         } catch (error: SQLiteException) {
-            Log.e("LocalRepository", "No se pudo cargar la sesión local", error)
+            Log.e(TAG, "No se pudo cargar la sesión local", error)
             UserProfile()
         }
     }
 
-    fun saveUserProfile(profile: UserProfile) {
+    override fun saveUserProfile(profile: UserProfile) {
         val resolvedFullName = buildFullName(profile.firstName, profile.firstLastName, profile.secondLastName)
             .ifBlank { profile.fullName.trim() }
+        val normalizedProfile = profile.copy(fullName = resolvedFullName)
         val values = ContentValues().apply {
-            put("rank", profile.rank)
-            put("first_name", profile.firstName.trim())
-            put("first_last_name", profile.firstLastName.trim())
-            put("second_last_name", profile.secondLastName.trim())
-            put("full_name", resolvedFullName)
-            put("email", profile.email)
-            put("research_topic", profile.researchTopic)
-            put("tutor_name", profile.tutorName)
-            put("sso_provider", profile.ssoProvider)
-            put("institution_type", profile.institutionType.name)
-            put("user_role", profile.userRole.name)
+            put("rank", normalizedProfile.rank)
+            put("first_name", normalizedProfile.firstName.trim())
+            put("first_last_name", normalizedProfile.firstLastName.trim())
+            put("second_last_name", normalizedProfile.secondLastName.trim())
+            put("full_name", normalizedProfile.fullName)
+            put("email", normalizedProfile.email)
+            put("research_topic", normalizedProfile.researchTopic)
+            put("tutor_name", normalizedProfile.tutorName)
+            put("sso_provider", normalizedProfile.ssoProvider)
+            put("institution_type", normalizedProfile.institutionType.name)
+            put("user_role", normalizedProfile.userRole.name)
         }
         database.writableDatabase.update(
             "users",
@@ -290,14 +96,16 @@ class LocalRepository(context: Context) {
             "id = (SELECT user_id FROM current_session WHERE id = 1)",
             null
         )
+        _currentProfile.value = normalizedProfile
     }
 
-    fun clearUserProfile() {
+    override fun clearSession() {
         database.writableDatabase.delete("current_session", "id = ?", arrayOf("1"))
+        _currentProfile.value = UserProfile(isLoggedIn = false)
     }
 
-    fun registerUser(profile: UserProfile, password: String): AuthResult {
-        val email = profile.email.trim().lowercase()
+    override fun registerUser(profile: UserProfile, password: String): AuthResult {
+        val email = profile.email.trim().lowercase(Locale.ROOT)
         val resolvedFullName = buildFullName(profile.firstName, profile.firstLastName, profile.secondLastName)
             .ifBlank { profile.fullName.trim() }
         val splitValid = if (
@@ -341,8 +149,10 @@ class LocalRepository(context: Context) {
             try {
                 val userId = db.insertOrThrow("users", null, values)
                 setCurrentSession(userId)
-                AuthResult.Success(profile.copy(fullName = resolvedFullName, email = email, isLoggedIn = true))
-            } catch (_: android.database.sqlite.SQLiteConstraintException) {
+                val loggedProfile = profile.copy(fullName = resolvedFullName, email = email, isLoggedIn = true)
+                _currentProfile.value = loggedProfile
+                AuthResult.Success(loggedProfile)
+            } catch (_: SQLiteConstraintException) {
                 val legacyUserId = db.query(
                     "users",
                     arrayOf("id", "password_hash"),
@@ -359,7 +169,9 @@ class LocalRepository(context: Context) {
                 } else {
                     db.update("users", values, "id = ?", arrayOf(legacyUserId.toString()))
                     setCurrentSession(legacyUserId)
-                    AuthResult.Success(profile.copy(email = email, isLoggedIn = true))
+                    val loggedProfile = profile.copy(fullName = resolvedFullName, email = email, isLoggedIn = true)
+                    _currentProfile.value = loggedProfile
+                    AuthResult.Success(loggedProfile)
                 }
             }
         } catch (_: SQLiteException) {
@@ -367,8 +179,8 @@ class LocalRepository(context: Context) {
         }
     }
 
-    fun login(emailInput: String, password: String): AuthResult {
-        val email = emailInput.trim().lowercase()
+    override fun login(emailInput: String, password: String): AuthResult {
+        val email = emailInput.trim().lowercase(Locale.ROOT)
         return try {
             database.readableDatabase.query(
                 "users",
@@ -382,20 +194,38 @@ class LocalRepository(context: Context) {
                 if (!cursor.moveToFirst()) return AuthResult.InvalidCredentials
                 val salt = cursor.getString(cursor.getColumnIndexOrThrow("password_salt"))
                 val expectedHash = cursor.getString(cursor.getColumnIndexOrThrow("password_hash"))
-                if (salt.isBlank() || !MessageDigest.isEqual(
-                        expectedHash.toByteArray(),
-                        PasswordHasher.hash(password, salt).toByteArray()
-                    )
-                ) {
+                if (!PasswordHasher.verify(password, salt, expectedHash)) {
                     return AuthResult.InvalidCredentials
                 }
                 val userId = cursor.getLong(cursor.getColumnIndexOrThrow("id"))
                 setCurrentSession(userId)
-                AuthResult.Success(cursor.toUserProfile(isLoggedIn = true))
+                val loggedProfile = cursor.toUserProfile(isLoggedIn = true)
+                _currentProfile.value = loggedProfile
+                AuthResult.Success(loggedProfile)
             }
         } catch (_: SQLiteException) {
             AuthResult.PersistenceError
         }
+    }
+
+    override fun loginQuickSso(provider: String): UserProfile {
+        val demoProfile = UserProfile(
+            rank = "Sargento 2°",
+            firstName = "Marcos",
+            firstLastName = "Soto",
+            secondLastName = "Rojas",
+            fullName = "Marcos Soto Rojas",
+            email = "marcos.soto@carabineros.cl",
+            researchTopic = "Estrategias de Seguridad Preventiva Cuadrante",
+            tutorName = "Mayor R. González",
+            ssoProvider = provider,
+            institutionType = InstitutionType.CARABINEROS,
+            userRole = UserRole.FUNCIONARIO,
+            isLoggedIn = true
+        )
+        _currentProfile.value = demoProfile
+        saveUserProfile(demoProfile)
+        return demoProfile
     }
 
     private fun setCurrentSession(userId: Long) {
@@ -410,7 +240,7 @@ class LocalRepository(context: Context) {
         )
     }
 
-    fun loadDeliverables(): List<Deliverable> {
+    override fun loadDeliverables(): List<Deliverable> {
         database.readableDatabase.query(
             "deliverables",
             DELIVERABLE_COLUMNS,
@@ -427,7 +257,7 @@ class LocalRepository(context: Context) {
         }
     }
 
-    fun saveDeliverables(items: List<Deliverable>) {
+    override fun saveDeliverables(items: List<Deliverable>) {
         val db = database.writableDatabase
         db.transaction {
             db.delete("deliverables", null, null)
@@ -443,7 +273,7 @@ class LocalRepository(context: Context) {
         }
     }
 
-    fun loadChecklist(): Map<String, Set<Int>> {
+    override fun loadChecklist(): Map<String, Set<Int>> {
         val loaded = demoStages.associate { it.id to mutableSetOf<Int>() }.toMutableMap()
         database.readableDatabase.query(
             "checklist_items",
@@ -461,7 +291,7 @@ class LocalRepository(context: Context) {
         return loaded.mapValues { it.value.toSet() }
     }
 
-    fun saveChecklist(checklist: Map<String, Set<Int>>) {
+    override fun saveChecklist(checklist: Map<String, Set<Int>>) {
         val db = database.writableDatabase
         db.transaction {
             db.delete("checklist_items", null, null)
@@ -476,7 +306,7 @@ class LocalRepository(context: Context) {
         }
     }
 
-    fun loadStageNotes(): Map<String, String> {
+    override fun loadStageNotes(): Map<String, String> {
         val notes = demoStages.associate { it.id to "" }.toMutableMap()
         database.readableDatabase.query(
             "stage_notes",
@@ -492,7 +322,7 @@ class LocalRepository(context: Context) {
         return notes
     }
 
-    fun saveStageNote(stageId: String, note: String) {
+    override fun saveStageNote(stageId: String, note: String) {
         database.writableDatabase.insertWithOnConflict(
             "stage_notes",
             null,
@@ -504,7 +334,7 @@ class LocalRepository(context: Context) {
         )
     }
 
-    fun loadProjectTopics(): List<ProjectTopic> {
+    override fun loadProjectTopics(): List<ProjectTopic> {
         return try {
             database.readableDatabase.query(
                 "project_topics",
@@ -524,7 +354,7 @@ class LocalRepository(context: Context) {
         }
     }
 
-    fun addProjectTopic(topic: ProjectTopic) {
+    override fun addProjectTopic(topic: ProjectTopic) {
         database.writableDatabase.insertWithOnConflict(
             "project_topics",
             null,
@@ -537,7 +367,7 @@ class LocalRepository(context: Context) {
         )
     }
 
-    fun deleteProjectTopic(id: String) {
+    override fun deleteProjectTopic(id: String) {
         database.writableDatabase.delete("project_topics", "id = ?", arrayOf(id))
     }
 
@@ -674,7 +504,7 @@ class LocalRepository(context: Context) {
             "users",
             null,
             ContentValues().apply {
-                put("email", profile.email.trim().lowercase())
+                put("email", profile.email.trim().lowercase(Locale.ROOT))
                 put("full_name", profile.fullName)
                 put("research_topic", profile.researchTopic)
                 put("tutor_name", profile.tutorName)
@@ -700,7 +530,7 @@ class LocalRepository(context: Context) {
         }
     }
 
-    private fun android.database.Cursor.toUserProfile(isLoggedIn: Boolean = false): UserProfile {
+    private fun Cursor.toUserProfile(isLoggedIn: Boolean = false): UserProfile {
         val fName = getColumnIndex("first_name").takeIf { it >= 0 }?.let { getString(it) }.orEmpty()
         val fLast = getColumnIndex("first_last_name").takeIf { it >= 0 }?.let { getString(it) }.orEmpty()
         val sLast = getColumnIndex("second_last_name").takeIf { it >= 0 }?.let { getString(it) }.orEmpty()
@@ -726,13 +556,13 @@ class LocalRepository(context: Context) {
         )
     }
 
-    private fun android.database.Cursor.toProjectTopic() = ProjectTopic(
+    private fun Cursor.toProjectTopic() = ProjectTopic(
         id = getString(getColumnIndexOrThrow("id")),
         title = getString(getColumnIndexOrThrow("title")),
         createdAt = getString(getColumnIndexOrThrow("created_at"))
     )
 
-    private fun android.database.Cursor.toDeliverable() = Deliverable(
+    private fun Cursor.toDeliverable() = Deliverable(
         id = getString(getColumnIndexOrThrow("id")),
         title = getString(getColumnIndexOrThrow("title")),
         dueDate = getString(getColumnIndexOrThrow("due_date")),
@@ -741,6 +571,7 @@ class LocalRepository(context: Context) {
     )
 
     companion object {
+        private const val TAG = "SqliteTutorRepository"
         private val USER_COLUMNS = arrayOf(
             "id", "rank", "first_name", "first_last_name", "second_last_name", "full_name",
             "email", "research_topic", "tutor_name", "sso_provider", "institution_type",
